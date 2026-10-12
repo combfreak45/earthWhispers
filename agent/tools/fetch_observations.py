@@ -3,7 +3,7 @@ import os
 from datetime import datetime, timezone
 from pathlib import Path
 
-MOCK_DATA_DIR = Path(__file__).parents[2] / "mock_data"
+MOCK_DATA_DIR = Path(__file__).parents[1] / "mock_data"
 
 
 def fetch_observations(area_id: str, event_id: str = None) -> dict:

@@ -2,7 +2,7 @@ import json
 import os
 from pathlib import Path
 
-MOCK_DATA_DIR = Path(__file__).parents[2] / "mock_data"
+MOCK_DATA_DIR = Path(__file__).parents[1] / "mock_data"
 
 
 def predict_flood_risk(event_id: str, features: dict) -> dict:
