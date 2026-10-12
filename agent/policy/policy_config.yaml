@@ -1,0 +1,14 @@
+alert_policy:
+  thresholds:
+    low: 0.3
+    medium: 0.6
+    high: 0.85
+
+  # Suppress repeat alerts for same area within this window
+  cooldown_minutes: 360
+
+  # Require human review above this class (demo safety gate)
+  human_review_above: "high"
+
+  # Don't alert if data quality is not "good"
+  min_data_quality: "good"
