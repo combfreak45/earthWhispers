@@ -27,7 +27,7 @@ Rules you must follow:
 
 root_agent = Agent(
     name="earthwhisper_agent",
-    model="google/gemini-2.0-flash",
+    model="gemini-2.0-flash",
     description="Flood-risk intelligence agent for EarthWhispers. Assesses flood risk from environmental signals.",
     instruction=SYSTEM_PROMPT,
     tools=[
