@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 
-MOCK_DATA_DIR = Path(__file__).parents[1] / "mock_data"
+MOCK_DATA_DIR = Path(__file__).parent / "mock_data"
 
 
 def load_signal_events() -> list:
