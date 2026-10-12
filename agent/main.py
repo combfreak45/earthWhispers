@@ -46,10 +46,11 @@ def _run_agent(message: str, area_id: str) -> str:
         ),
     ):
         if event_chunk.is_final_response():
-            final_response = event_chunk.content.parts[0].text
+            if event_chunk.content and event_chunk.content.parts:
+                final_response = event_chunk.content.parts[0].text
             break
 
-    return final_response
+    return final_response or "Agent returned no response."
 
 
 @app.route("/", methods=["POST"])
