@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 from datetime import datetime, timezone
 
-MOCK_DATA_DIR = Path(__file__).parents[2] / "mock_data"
+MOCK_DATA_DIR = Path(__file__).parents[1] / "mock_data"
 
 
 def query_impact_graph(area_id: str) -> dict:
