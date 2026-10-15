@@ -94,8 +94,11 @@ Provide a concise summary and numbered recommended actions.
         contents=prompt,
         config=types.GenerateContentConfig(
             system_instruction=SYSTEM_INSTRUCTION,
-            max_output_tokens=512,
+            max_output_tokens=1024,
             temperature=0.2,
+            # gemini-2.5-flash "thinking" otherwise consumes the output budget and
+            # truncates the briefing; we don't need reasoning tokens for a summary.
+            thinking_config=types.ThinkingConfig(thinking_budget=0),
         ),
     )
 
