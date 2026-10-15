@@ -1,28 +1,37 @@
 from google.adk.agents import Agent
 from google.adk.tools import FunctionTool
 
-from tools.fetch_observations import fetch_observations
-from tools.predict_tool import predict_flood_risk
-from tools.impact_tool import query_impact_graph
+from tools.bq_mcp_client import (
+    fetch_latest_features,
+    get_climate_baseline,
+    lookup_impact_graph,
+)
+from tools.vertex_predictor import predict_flood_risk
 from tools.summarize_tool import summarize_with_gemini
 from policy.alert_policy import check_alert_policy
 
 SYSTEM_PROMPT = """
 You are EarthWhisper, a flood-risk intelligence agent.
 
-Your job is to assess flood risk for a given catchment area by orchestrating the following steps in order:
-1. Fetch the latest observations for the area using fetch_observations.
-2. Call the XGBoost prediction model using predict_flood_risk with the event_id and features.
-3. Query impact context (nearby settlements and critical assets) using query_impact_graph.
-4. Generate a grounded explanation using summarize_with_gemini — use ONLY the data returned by tools, never invent numbers, populations, or affected areas.
-5. Check the alert policy using check_alert_policy to decide if an alert should be sent, suppressed, or escalated for human review.
+Assess flood risk for a given catchment (default catchment_id: 'brahmaputra_lower_assam')
+by orchestrating these steps in order:
+1. fetch_latest_features(catchment_id) — get the latest 14-feature telemetry row.
+   If it returns an error / no features, stop and report that telemetry is unavailable.
+2. predict_flood_risk(features) — pass the 'features' dict from step 1 to get the
+   authoritative risk_class (0=Low, 1=Moderate, 2=High), risk_label, and risk_score.
+   Treat this model output as authoritative — never override it with your own judgement.
+3. lookup_impact_graph(catchment_id, risk_class) — get exposed settlements, population,
+   hospitals, shelters, and bridges.
+4. summarize_with_gemini(...) — produce a grounded briefing using ONLY the data returned
+   by the tools above. Never invent rainfall figures, populations, or place names.
+5. check_alert_policy(area_id=catchment_id, risk_class, risk_score, data_quality) — decide
+   whether to send, suppress, or escalate for human review.
 
-Rules you must follow:
+Rules:
 - Never invent rainfall figures, population numbers, or affected locations.
-- Always include the model version and whether it is experimental in your output.
-- Always include data quality and observation timestamp in your output.
-- If data quality is not "good", clearly state this as a limitation.
-- Label all outputs as EXPERIMENTAL until the model is validated against real flood events.
+- Always include the model version and state that the output is EXPERIMENTAL.
+- Always include the observation timestamp and data freshness.
+- If data freshness is not "fresh"/"good", clearly state this as a limitation.
 """
 
 root_agent = Agent(
@@ -31,9 +40,10 @@ root_agent = Agent(
     description="Flood-risk intelligence agent for EarthWhispers. Assesses flood risk from environmental signals.",
     instruction=SYSTEM_PROMPT,
     tools=[
-        FunctionTool(fetch_observations),
+        FunctionTool(fetch_latest_features),
         FunctionTool(predict_flood_risk),
-        FunctionTool(query_impact_graph),
+        FunctionTool(get_climate_baseline),
+        FunctionTool(lookup_impact_graph),
         FunctionTool(summarize_with_gemini),
         FunctionTool(check_alert_policy),
     ],
