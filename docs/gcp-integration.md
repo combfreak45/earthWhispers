@@ -158,12 +158,17 @@ Confirms feature order. 14 features + `flood_risk_level` label + `event_id`, `sp
 
 | Piece | File | Status |
 |---|---|---|
-| Vertex AI prediction | `agent/tools/vertex_predictor.py` | written; needs `telemetry.py` + wiring |
-| Impact graph lookup | `agent/tools/bq_mcp_client.py` | written; needs `data_pipeline/mcp_bq_client.py` + wiring |
-| `telemetry.py` (`get_tracer`) | `agent/telemetry.py` | **missing — both tools import it** |
-| `mcp_bq_client.py` (`BigQueryMCPClient.execute_query`) | `data_pipeline/mcp_bq_client.py` | **missing — `bq_mcp_client.py` imports it** |
-| Latest-telemetry query | `catchment_features` | not built |
-| Baseline lookup | `catchment_climate_baseline` | not built |
-| Audit append | `alert_audits` | not built |
-| Wire new tools into agent | `agent/agent.py` | still imports old mock tools (`predict_tool`, `impact_tool`) |
-| Env var alignment | `.env.example` | `REGION` vs `VERTEX_ENDPOINT_REGION` mismatch |
+| Vertex AI prediction | `agent/tools/vertex_predictor.py` | ✅ live-verified (class 2, correct probs) |
+| Impact graph lookup | `agent/tools/bq_mcp_client.py` | ✅ live-verified (464k exposed, real assets) |
+| `telemetry.py` (`get_tracer`) | `agent/telemetry.py` | ✅ built |
+| `mcp_bq_client.py` (`BigQueryMCPClient`) | `data_pipeline/mcp_bq_client.py` | ✅ built (auto-detects dataset location) |
+| Latest-telemetry query | `catchment_features` | ✅ `fetch_latest_features` (live-verified) |
+| Baseline lookup | `catchment_climate_baseline` | ✅ `get_climate_baseline` (live-verified) |
+| Audit append | `alert_audits` | ✅ `write_alert_audit` via `run_assessment` (rows confirmed) |
+| Orchestration + agent wiring | `agent/pipeline.py`, `agent/agent.py`, `agent/main.py`, `replay.py` | ✅ live end-to-end (HIGH→human_review, audited) |
+| Env var alignment | `.env.example` | ✅ updated for live config |
+| Dead mock code | `fetch_observations/predict_tool/impact_tool`, `mock_data/*` | ✅ removed |
+
+> Note: `catchment_features` was empty; one high-risk row was seeded from
+> `training_dataset` (`feature_version="seed-from-training-v1"`) for the live demo.
+> A real pipeline should populate this table operationally.
