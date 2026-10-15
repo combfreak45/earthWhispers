@@ -14,6 +14,7 @@ from google.adk.sessions import InMemorySessionService
 from google.genai import types
 
 from agent import root_agent
+from pipeline import run_assessment
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -74,12 +75,19 @@ def pubsub_handler():
         return jsonify({"error": "Missing area_id or event_id"}), 400
 
     logger.info(f"Received signal event: event_id={event_id}, area_id={area_id}")
-    message = (
-        f"A flood signal has been detected. "
-        f"Please assess flood risk for area_id='{area_id}' using event_id='{event_id}'."
-    )
-    response = _run_agent(message, area_id)
-    return jsonify({"status": "ok", "response": response}), 200
+    # Deterministic assessment + compliance audit (orchestration-level).
+    result = run_assessment(catchment_id=area_id, mode="live")
+    pred = result.get("prediction", {})
+    return jsonify({
+        "status": result.get("status"),
+        "catchment_id": area_id,
+        "event_id": event_id,
+        "risk_label": pred.get("risk_label"),
+        "risk_score": pred.get("risk_score"),
+        "policy_decision": result.get("policy", {}).get("decision"),
+        "summary": result.get("summary"),
+        "audit": result.get("audit"),
+    }), 200
 
 
 @app.route("/run", methods=["POST"])
@@ -90,7 +98,7 @@ def chat_handler():
         return jsonify({"error": "Missing 'message' in request body"}), 400
 
     message = body["message"]
-    area_id = body.get("area_id", "catchment_brahmaputra_assam")
+    area_id = body.get("area_id", "brahmaputra_lower_assam")
 
     logger.info(f"Chat request: area_id={area_id}, message={message[:60]}")
     response = _run_agent(message, area_id)

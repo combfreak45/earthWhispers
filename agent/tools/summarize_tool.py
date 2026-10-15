@@ -10,8 +10,7 @@ Rules you MUST follow:
 - Use ONLY the data provided in the prompt. Never invent rainfall figures,
   population numbers, place names, or probabilities.
 - Always state the model version and that the output is experimental.
-- Always include data quality and observation timestamp.
-- If data quality is not "good", clearly highlight this as a limitation.
+- Always include the observation timestamp context and data freshness if provided.
 - End with a numbered list of recommended preparedness actions appropriate to the risk level.
 - Keep the summary concise — under 300 words.
 """
@@ -19,52 +18,57 @@ Rules you MUST follow:
 
 def summarize_with_gemini(
     area_name: str,
+    risk_label: str,
     risk_score: float,
-    risk_class: str,
-    observations: dict,
+    features: dict,
+    baseline: dict,
     impact: dict,
     model_version: str,
-    is_experimental: bool,
 ) -> dict:
     """
-    Generate a grounded flood risk explanation using Gemini.
+    Generate a grounded flood risk explanation using Gemini, from live tool outputs.
     Only uses evidence passed in — never invents data.
 
     Returns:
         dict with summary (str) and recommended_actions (list)
     """
-    settlements = impact.get("nearby_settlements", [])
-    assets = impact.get("critical_assets", [])
-
+    records = impact.get("detailed_records", [])
+    settlements = [r for r in records if r.get("asset_type") == "SETTLEMENT" and r.get("population")]
     settlement_text = "\n".join(
-        f"  - {s['name']}: population {s['population']:,}, {s['distance_km']} km away"
-        for s in settlements
+        f"  - {r['name']}: population {r['population']:,}" for r in settlements
     ) or "  - No settlement data available"
 
-    asset_text = "\n".join(
-        f"  - {a['name']} ({a['type']}): {a['distance_km']} km away"
-        for a in assets
-    ) or "  - No critical asset data available"
+    assets = (
+        [("Hospital", n) for n in impact.get("critical_hospitals", [])]
+        + [("Evacuation center", n) for n in impact.get("evacuation_centers", [])]
+        + [("Bridge", n) for n in impact.get("vulnerable_bridges", [])]
+    )
+    asset_text = "\n".join(f"  - {n} ({t})" for t, n in assets) or "  - No critical asset data available"
 
-    experimental_note = "(EXPERIMENTAL — not an official forecast)" if is_experimental else ""
+    base = baseline if isinstance(baseline, dict) and "error" not in baseline else {}
+    experimental_note = "(EXPERIMENTAL — not an official forecast)"
 
     prompt = f"""
 Generate a flood risk summary for the following situation:
 
 AREA: {area_name} {experimental_note}
-RISK LEVEL: {risk_class.upper()} (score: {risk_score:.2f}, model: {model_version})
+RISK LEVEL: {risk_label.upper()} (score: {risk_score:.2f}, model: {model_version})
 
-OBSERVED SIGNALS:
-- 1-hour rainfall: {observations.get('rainfall_1h', 'N/A')} mm
-- 3-hour rainfall: {observations.get('rainfall_3h', 'N/A')} mm
-- 6-hour rainfall: {observations.get('rainfall_6h', 'N/A')} mm
-- 24-hour rainfall: {observations.get('rainfall_24h', 'N/A')} mm
-- 72-hour rainfall: {observations.get('rainfall_72h', 'N/A')} mm
-- Seasonal baseline (24h): {observations.get('baseline_24h', 'N/A')} mm
-- Anomaly score: {observations.get('anomaly_score', 'N/A')}x above baseline
-- Signal rule triggered: {observations.get('triggered_rule', 'N/A')}
-- Data quality: {observations.get('data_quality', 'unknown')}
-- Observation time: {observations.get('event_time', 'unknown')}
+OBSERVED RAINFALL (live telemetry):
+- 1-hour: {features.get('rain_1h_mm', 'N/A')} mm
+- 6-hour: {features.get('rain_6h_mm', 'N/A')} mm
+- 24-hour: {features.get('rain_24h_mm', 'N/A')} mm
+- 72-hour: {features.get('rain_72h_mm', 'N/A')} mm
+- 7-day: {features.get('rain_7d_mm', 'N/A')} mm
+- 24h anomaly: {features.get('rain_24h_anomaly_pct', 'N/A')}% vs normal
+- 72h z-score: {features.get('rain_72h_zscore', 'N/A')}
+- Soil water (layer 1): {features.get('soil_water_layer1', 'N/A')}
+
+SEASONAL BASELINE (day-of-year normals):
+- Mean 24h rainfall: {base.get('mean_rain_24h_mm', 'N/A')} mm (± {base.get('std_rain_24h_mm', 'N/A')})
+- Mean 72h rainfall: {base.get('mean_rain_72h_mm', 'N/A')} mm (± {base.get('std_rain_72h_mm', 'N/A')})
+
+EXPOSED POPULATION: {impact.get('total_exposed_population', 0):,}
 
 NEARBY COMMUNITIES:
 {settlement_text}
@@ -76,18 +80,25 @@ Provide a concise summary and numbered recommended actions.
 """
 
     api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
+    use_vertex = os.environ.get("GOOGLE_GENAI_USE_VERTEXAI")
 
-    if not api_key:
-        return _mock_summary(area_name, risk_score, risk_class, observations, impact, model_version, is_experimental)
+    if api_key:
+        client = genai.Client(api_key=api_key)
+    elif use_vertex:
+        client = genai.Client()  # Vertex AI via GOOGLE_GENAI_USE_VERTEXAI/PROJECT_ID/REGION
+    else:
+        return _mock_summary(area_name, risk_label, risk_score, features, impact, model_version)
 
-    client = genai.Client(api_key=api_key)
     response = client.models.generate_content(
         model="gemini-2.5-flash",
         contents=prompt,
         config=types.GenerateContentConfig(
             system_instruction=SYSTEM_INSTRUCTION,
-            max_output_tokens=512,
+            max_output_tokens=1024,
             temperature=0.2,
+            # gemini-2.5-flash "thinking" otherwise consumes the output budget and
+            # truncates the briefing; we don't need reasoning tokens for a summary.
+            thinking_config=types.ThinkingConfig(thinking_budget=0),
         ),
     )
 
@@ -110,30 +121,25 @@ def _extract_actions(summary_text: str) -> list:
     return actions if actions else ["Monitor situation closely and follow local authority guidance."]
 
 
-def _mock_summary(area_name, risk_score, risk_class, observations, impact, model_version, is_experimental) -> dict:
-    """Fallback when no API key is set — used for local development."""
-    settlements = impact.get("nearby_settlements", [])
-    assets = impact.get("critical_assets", [])
-    caveat = "(EXPERIMENTAL)" if is_experimental else ""
-
+def _mock_summary(area_name, risk_label, risk_score, features, impact, model_version) -> dict:
+    """Fallback when no Gemini access is configured — used for local development."""
+    settlements = [r for r in impact.get("detailed_records", []) if r.get("asset_type") == "SETTLEMENT"]
     summary = (
-        f"[Mock Summary — set GEMINI_API_KEY to enable real Gemini responses]\n\n"
-        f"Flood risk assessment for {area_name} {caveat}\n"
-        f"Risk: {risk_class.upper()} (score: {risk_score:.2f}, model: {model_version})\n\n"
-        f"24h rainfall: {observations.get('rainfall_24h', 'N/A')} mm "
-        f"({observations.get('anomaly_score', 'N/A')}x above baseline of {observations.get('baseline_24h', 'N/A')} mm)\n"
-        f"Data quality: {observations.get('data_quality', 'unknown')} | "
-        f"Observed at: {observations.get('event_time', 'unknown')}\n\n"
-        f"Nearby communities: {', '.join(s['name'] for s in settlements) or 'None'}\n"
-        f"Critical assets: {', '.join(a['name'] for a in assets) or 'None'}"
+        f"[Mock Summary — set GEMINI_API_KEY or GOOGLE_GENAI_USE_VERTEXAI to enable Gemini]\n\n"
+        f"Flood risk assessment for {area_name} (EXPERIMENTAL)\n"
+        f"Risk: {risk_label.upper()} (score: {risk_score:.2f}, model: {model_version})\n\n"
+        f"24h rainfall: {features.get('rain_24h_mm', 'N/A')} mm "
+        f"({features.get('rain_24h_anomaly_pct', 'N/A')}% vs normal, "
+        f"72h z-score {features.get('rain_72h_zscore', 'N/A')})\n"
+        f"Exposed population: {impact.get('total_exposed_population', 0):,}\n"
+        f"Nearby communities: {', '.join(r['name'] for r in settlements) or 'None'}"
     )
-
-    actions = _recommend_actions(risk_class)
-    return {"summary": summary, "recommended_actions": actions}
+    return {"summary": summary, "recommended_actions": _recommend_actions(risk_label)}
 
 
-def _recommend_actions(risk_class: str) -> list:
-    if risk_class == "high":
+def _recommend_actions(risk_label: str) -> list:
+    label = (risk_label or "").lower()
+    if label == "high":
         return [
             "Alert local disaster response authorities immediately",
             "Activate flood early warning systems in affected communities",
@@ -141,9 +147,9 @@ def _recommend_actions(risk_class: str) -> list:
             "Inspect and secure critical infrastructure (bridges, power stations)",
             "Monitor river gauge levels continuously",
         ]
-    elif risk_class == "medium":
+    elif label == "moderate":
         return [
-            "Issue precautionary advisories to communities within 30 km",
+            "Issue precautionary advisories to communities within the catchment",
             "Put emergency response teams on standby",
             "Monitor rainfall and river levels closely over next 6 hours",
             "Verify critical asset readiness (hospitals, shelters)",
