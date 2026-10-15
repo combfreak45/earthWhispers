@@ -63,7 +63,7 @@ def predict_flood_risk(features: Dict[str, Any], mode: str = "live") -> Dict[str
         # Determine predicted class
         probs = [p0, p1, p2]
         pred_class = int(probs.index(max(probs)))
-        labels = ["Low", "Moderate", "Severe"]
+        labels = ["Low", "Moderate", "High"]
         pred_label = labels[pred_class]
         risk_score = round(p1 * 0.5 + p2 * 1.0, 3)
 
@@ -95,7 +95,7 @@ def predict_flood_risk(features: Dict[str, Any], mode: str = "live") -> Dict[str
             "class_probabilities": {
                 "low": round(p0, 3),
                 "moderate": round(p1, 3),
-                "severe": round(p2, 3)
+                "high": round(p2, 3)
             },
             "top_contributing_features": top_drivers,
             "model_version": "earthwhisper-xgboost-v1.0"
