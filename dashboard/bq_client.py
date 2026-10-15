@@ -131,7 +131,7 @@ def get_enriched_predictions() -> list:
             "rainfall_1h": r.get("rain_1h_mm", "N/A"),
             "rainfall_3h": r.get("rain_3h_mm", "N/A"),
             "rainfall_6h": r.get("rain_6h_mm", "N/A"),
-            "rainfall_24h": rain_24h if rain_24h is not None else "N/A",
+            "rainfall_24h": rain_24h,  # numeric or None (keeps the history column Arrow-clean)
             "rainfall_72h": r.get("rain_72h_mm", "N/A"),
             "baseline_24h": baseline_24h if baseline_24h is not None else "N/A",
             "anomaly_score": anomaly,
