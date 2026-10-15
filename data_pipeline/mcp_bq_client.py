@@ -24,9 +24,11 @@ logger = logging.getLogger("earthwhisper-bq-client")
 class BigQueryMCPClient:
     """Thin wrapper over google-cloud-bigquery with an MCP-style execute_query()."""
 
-    def __init__(self, project_id: Optional[str] = None, location: str = "US"):
+    def __init__(self, project_id: Optional[str] = None, location: Optional[str] = None):
         self.project_id = project_id or os.getenv("PROJECT_ID")
-        self.location = location
+        # Leave unset to let BigQuery auto-detect the dataset's location.
+        # Override via BIGQUERY_LOCATION only if auto-detection ever fails.
+        self.location = location or os.getenv("BIGQUERY_LOCATION") or None
         self._client: Optional[bigquery.Client] = None
 
     @property
