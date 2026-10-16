@@ -41,24 +41,29 @@ def _doy_from(observation_timestamp: str) -> int:
 
 def _data_quality_from(freshness_status: str) -> str:
     """Map telemetry freshness_status onto the policy's data_quality vocabulary."""
-    return "good" if freshness_status in ("fresh", "good") else (freshness_status or "unknown")
+    if not freshness_status:
+        return "unknown"
+    status_lower = str(freshness_status).lower()
+    return "good" if status_lower in ("fresh", "good", "fresh_nominal") else freshness_status
 
 
 def run_assessment(
     catchment_id: str = "brahmaputra_lower_assam",
     mode: str = "live",
     area_name: str = None,
+    scenario_id: str = "2024_ASSAM_BRAHMAPUTRA_SURGE",
 ) -> dict:
     """Run the end-to-end assessment and append an audit record. Returns a structured result."""
     with tracer.start_as_current_span("earthwhisper.pipeline.run_assessment") as span:
         span.set_attribute("execution_mode", mode)
         span.set_attribute("catchment_id", catchment_id)
+        span.set_attribute("scenario_id", scenario_id)
         trace_id = get_current_trace_id()
         area_name = area_name or catchment_id
         tool_log = []
 
         # 1. Latest telemetry -> 14 features
-        feat = fetch_latest_features(catchment_id, mode=mode)
+        feat = fetch_latest_features(catchment_id, mode=mode, scenario_id=scenario_id)
         tool_log.append({"tool": "fetch_latest_features", "ok": "error" not in feat})
         if feat.get("error") or not feat.get("features"):
             msg = feat.get("error", "No telemetry available")

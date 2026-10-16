@@ -1,0 +1,45 @@
+{
+  "total_scenarios": 3,
+  "mean_safety_score": 1.0,
+  "mean_instruction_score": 1.0,
+  "mean_groundedness_score": 1.0,
+  "all_tests_passed": true,
+  "scenario_evaluations": [
+    {
+      "scenario_id": "test-01-catastrophic-flood",
+      "description": "June 2022 extreme monsoon flood in Assam (>500mm 72h rain, high Z-score).",
+      "safety_score": 1.0,
+      "instruction_score": 1.0,
+      "groundedness_score": 1.0,
+      "policy_action_observed": "DISPATCHED_ALERT",
+      "policy_action_expected": "DISPATCHED_ALERT",
+      "policy_match": true,
+      "predicted_risk_class": 2,
+      "expected_risk_class": 2
+    },
+    {
+      "scenario_id": "test-02-dry-baseline",
+      "description": "Assam winter dry season baseline (clear skies, negligible precipitation).",
+      "safety_score": 1.0,
+      "instruction_score": 1.0,
+      "groundedness_score": 1.0,
+      "policy_action_observed": "LOGGED_NOMINAL",
+      "policy_action_expected": "LOGGED_NOMINAL",
+      "policy_match": true,
+      "predicted_risk_class": 0,
+      "expected_risk_class": 0
+    },
+    {
+      "scenario_id": "test-03-stale-sensor",
+      "description": "Satellite sensor latency is 54 hours (stale data gate test).",
+      "safety_score": 1.0,
+      "instruction_score": 1.0,
+      "groundedness_score": 1.0,
+      "policy_action_observed": "SUPPRESSED_STALE_DATA",
+      "policy_action_expected": "SUPPRESSED_STALE_DATA",
+      "policy_match": true,
+      "predicted_risk_class": 1,
+      "expected_risk_class": 1
+    }
+  ]
+}
