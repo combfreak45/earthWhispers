@@ -22,7 +22,26 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "data_pipeline"))
 
 logger = logging.getLogger("earthwhisper-dashboard-bq")
 
-PROJECT_ID = os.getenv("PROJECT_ID") or os.getenv("GOOGLE_CLOUD_PROJECT", "earthwhisper-dev")
+def _resolve_project_id() -> str:
+    try:
+        from dotenv import load_dotenv
+        load_dotenv()
+    except Exception:
+        pass
+    for var in ("PROJECT_ID", "GOOGLE_CLOUD_PROJECT", "GCP_PROJECT"):
+        val = os.getenv(var)
+        if val and val.strip():
+            return val.strip()
+    try:
+        import google.auth
+        _, auth_project = google.auth.default()
+        if auth_project and auth_project.strip():
+            return auth_project.strip()
+    except Exception:
+        pass
+    return os.getenv("DEFAULT_GCP_PROJECT", "earth-whisper-ai-builders-cup")
+
+PROJECT_ID = _resolve_project_id()
 DATASET = os.getenv("BIGQUERY_DATASET_LIVE", "earthwhisper_live")
 
 RISK_LABELS = {0: "low", 1: "medium", 2: "high"}

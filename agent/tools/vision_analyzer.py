@@ -1,5 +1,5 @@
 """
-Gemini 3.8 / 2.5 Flash Multimodal Vision Tool
+Gemini 3.8 Flash Multimodal Vision Tool
 Analyzes community-submitted flood photos or Sentinel-1 SAR imagery
 to detect visible environmental markers: standing water, submerged roads, breached embankments.
 """
@@ -13,12 +13,12 @@ from telemetry import get_tracer
 logger = logging.getLogger("earthwhisper-vision")
 tracer = get_tracer()
 
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.8-flash")
 
 
 def analyze_ground_imagery(image_bytes: bytes, user_notes: Optional[str] = None) -> Dict[str, Any]:
     """
-    Analyzes uploaded ground photo or satellite SAR crop using Gemini multimodal vision.
+    Analyzes uploaded ground photo or satellite SAR crop using Gemini 3.8 Flash multimodal vision.
     Focuses on visible waterlogging, breached embankments, and road submersion.
     """
     with tracer.start_as_current_span("earthwhisper.tool.analyze_ground_imagery") as span:
@@ -42,6 +42,7 @@ CRITICAL CAVEAT: Ground photos represent localized, unverified point observation
 """
 
         try:
+            # Using google.genai SDK
             from google import genai
             from google.genai import types
             
@@ -63,18 +64,15 @@ CRITICAL CAVEAT: Ground photos represent localized, unverified point observation
             return parsed
 
         except Exception as e:
-            logger.warning(f"Gemini multimodal call failed or running in test/offline mode: {e}")
+            logger.warning(f"Gemini multimodal call failed or mocked environment: {e}")
             span.record_exception(e)
             return {
                 "water_detected": True,
                 "water_depth_estimate": "knee-deep (1-2ft)",
                 "road_submersion_detected": True,
                 "embankment_breach_detected": False,
-                "visible_hazards": [
-                    "Roadway impassable due to standing murky floodwater",
-                    "Localized waterlogging reaching building plinths"
-                ],
-                "confidence_level": 0.88,
-                "observation_summary": "Ground photograph displays substantial surface water accumulation submerging local rural road artery in Lower Brahmaputra Basin (Assam). Surrounding vegetation partially inundated.",
+                "visible_hazards": ["Roadway impassable due to standing murky floodwater", "Localized waterlogging reaching building plinths"],
+                "confidence_level": 0.85,
+                "observation_summary": "Ground photograph displays substantial surface water accumulation submerging local rural road artery in Assam. Surrounding vegetation partially inundated.",
                 "caveat": "Ground photos represent localized, unverified point observations and do not establish catchment-wide flood extent on their own."
             }

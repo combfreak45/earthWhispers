@@ -19,7 +19,7 @@ All values below were **confirmed via `gcloud`/`bq` on 2026-10-15**.
 | Region | `us-central1` |
 | BigQuery live dataset | `earthwhisper_live` |
 
-Environment variables (set these in `.env`; the code's `earthwhisper-dev` default is **wrong**):
+Environment variables (set these in `.env` or pass via Cloud Run deployment):
 
 ```bash
 PROJECT_ID=earth-whisper-ai-builders-cup

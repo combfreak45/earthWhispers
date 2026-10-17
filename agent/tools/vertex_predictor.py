@@ -12,7 +12,26 @@ from telemetry import get_tracer
 logger = logging.getLogger("earthwhisper-vertex-predictor")
 tracer = get_tracer()
 
-PROJECT_ID = os.getenv("PROJECT_ID", "earthwhisper-dev")
+def _resolve_project_id() -> str:
+    try:
+        from dotenv import load_dotenv
+        load_dotenv()
+    except Exception:
+        pass
+    for var in ("PROJECT_ID", "GOOGLE_CLOUD_PROJECT", "GCP_PROJECT"):
+        val = os.getenv(var)
+        if val and val.strip():
+            return val.strip()
+    try:
+        import google.auth
+        _, auth_project = google.auth.default()
+        if auth_project and auth_project.strip():
+            return auth_project.strip()
+    except Exception:
+        pass
+    return os.getenv("DEFAULT_GCP_PROJECT", "earth-whisper-ai-builders-cup")
+
+PROJECT_ID = _resolve_project_id()
 REGION = os.getenv("REGION", "us-central1")
 ENDPOINT_ID = os.getenv("VERTEX_ENDPOINT_ID")
 

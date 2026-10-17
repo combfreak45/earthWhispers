@@ -1,1 +1,1 @@
-# EarthWhispers Agent package
+# EarthWhisper Agent Package

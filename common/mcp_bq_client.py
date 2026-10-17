@@ -1,12 +1,12 @@
 """
-EarthWhisper BigQuery MCP Toolset Client
-Interfaces directly with Google's managed BigQuery MCP Server:
-- Endpoint: https://bigquery.googleapis.com/mcp
-- Transport: Streamable HTTP
+EarthWhisper BigQuery MCP Toolset Client (Canonical Shared Library)
+Interfaces with BigQuery:
+- Protocol: Model Context Protocol (MCP) toolset via Streamable HTTP (https://bigquery.googleapis.com/mcp)
+- Queries: Deterministic, parameterized execution using google-cloud-bigquery client
+- Streaming Inserts: Native insert_rows_json API for robust free-text / markdown audit logging
 - Authentication: Google Application Default Credentials (ADC) / Cloud Run Service Account OAuth2 token.
 
-Fulfills PRD Functional Requirements (FR-05, FR-08) by executing all database operations
-(reads, writes, impact queries, feature inserts) via the Model Context Protocol (MCP) toolset.
+Fulfills PRD Functional Requirements (FR-05, FR-08) as the single source of truth for database operations.
 """
 
 import os
@@ -18,18 +18,39 @@ import google.auth
 from google.auth.transport.requests import Request as GoogleAuthRequest
 
 logger = logging.getLogger("earthwhisper-bq-mcp")
+logger.setLevel(logging.INFO)
 
 BIGQUERY_MCP_URL = os.getenv("BIGQUERY_MCP_URL", "https://bigquery.googleapis.com/mcp")
 
 
+def _resolve_project_id() -> str:
+    """Resolve active Google Cloud Project ID dynamically from environment or ADC."""
+    try:
+        from dotenv import load_dotenv
+        load_dotenv()
+    except Exception:
+        pass
+    for var in ("PROJECT_ID", "GOOGLE_CLOUD_PROJECT", "GCP_PROJECT"):
+        val = os.getenv(var)
+        if val and val.strip():
+            return val.strip()
+    try:
+        _, auth_project = google.auth.default()
+        if auth_project and auth_project.strip():
+            return auth_project.strip()
+    except Exception:
+        pass
+    return os.getenv("DEFAULT_GCP_PROJECT", "earth-whisper-ai-builders-cup")
+
+
 class BigQueryMCPClient:
     """
-    Client for interacting with Google's managed BigQuery MCP Server via Streamable HTTP.
-    Uses the MCP 'execute_query' tool for all database operations.
+    Client for interacting with BigQuery via the Model Context Protocol (MCP) toolset
+    and Google Cloud BigQuery APIs.
     """
 
     def __init__(self, project_id: Optional[str] = None, mcp_url: str = BIGQUERY_MCP_URL):
-        self.project_id = project_id or os.getenv("PROJECT_ID", "earthwhisper-dev")
+        self.project_id = project_id or _resolve_project_id()
         self.mcp_url = mcp_url
         self._credentials = None
         self._init_auth()
@@ -53,7 +74,6 @@ class BigQueryMCPClient:
         """
         Executes an MCP tool call over Streamable HTTP according to the MCP specification.
         """
-        # Map internal tool names to standard BigQuery MCP server methods
         mcp_tool = tool_name
         mcp_args = dict(arguments)
         if tool_name in ("execute_query", "execute_sql"):
@@ -85,7 +105,12 @@ class BigQueryMCPClient:
                 result = resp.json()
                 if "error" in result:
                     raise RuntimeError(f"MCP server returned error: {result['error']}")
-                return result.get("result", {})
+                res_obj = result.get("result", {})
+                if res_obj.get("isError"):
+                    err_texts = [c.get("text", "") for c in res_obj.get("content", []) if c.get("type") == "text"]
+                    err_msg = " ".join(err_texts) or "Unknown MCP error"
+                    raise RuntimeError(f"MCP server returned tool error: {err_msg}")
+                return res_obj
             else:
                 logger.warning(f"MCP server HTTP {resp.status_code}: {resp.text}. Falling back to native BigQuery execution.")
                 raise ConnectionError(f"HTTP {resp.status_code} from MCP server: {resp.text}")
@@ -104,13 +129,12 @@ class BigQueryMCPClient:
         if tool_name in ("execute_query", "execute_sql"):
             query = arguments.get("query", "")
             query_job = client.query(query)
-            # Check if query produces rows (e.g. SELECT) or is DML (e.g. INSERT)
-            if query.strip().upper().startswith("SELECT"):
+            if query.strip().upper().startswith("SELECT") or query.strip().upper().startswith("WITH"):
                 rows = [dict(row.items()) for row in query_job.result()]
                 return {"content": [{"type": "text", "text": json.dumps(rows, default=str)}], "rows": rows}
             else:
-                query_job.result() # Wait for DML to complete
-                return {"content": [{"type": "text", "text": f"Query executed successfully. Affected rows: {query_job.num_dml_affected_rows}"}]}
+                query_job.result()
+                return {"content": [{"type": "text", "text": f"Query executed successfully. Affected rows: {query_job.num_dml_affected_rows}"}], "affected_rows": query_job.num_dml_affected_rows}
         elif tool_name in ("list_tables", "list_table_ids"):
             dataset_id = arguments.get("dataset_id")
             tables = [t.table_id for t in client.list_tables(dataset_id)]
@@ -122,10 +146,6 @@ class BigQueryMCPClient:
         """
         Execute a SQL query on BigQuery using the native google-cloud-bigquery client
         with real parameterized queries.
-
-        The managed MCP HTTP endpoint returns 200 for reads but its row-response format
-        did not parse reliably (populated tables came back empty), so reads go through
-        the authoritative native client directly. Writes still use the MCP tool path.
         """
         from google.cloud import bigquery
         client = bigquery.Client(project=self.project_id)
@@ -144,22 +164,20 @@ class BigQueryMCPClient:
 
     def insert_records_batch(self, table_fqn: str, records: List[Dict[str, Any]], batch_size: int = 500):
         """
-        Append rows via the native google-cloud-bigquery streaming insert (insert_rows_json).
-
-        Avoids string-built INSERT SQL entirely, so free-text fields (e.g. gemini_briefing
-        with quotes/newlines/markdown) are handled safely, TIMESTAMP columns accept ISO
-        strings, and failures surface as errors instead of silently succeeding via MCP HTTP.
+        Append rows via native google-cloud-bigquery streaming insert (insert_rows_json).
+        Avoids SQL string concatenation, handles free-text markdown, quotes, and newlines safely.
         """
         if not records:
             return
         from google.cloud import bigquery
         client = bigquery.Client(project=self.project_id)
+        clean_table = table_fqn.strip("`")
         for i in range(0, len(records), batch_size):
             chunk = records[i:i + batch_size]
-            errors = client.insert_rows_json(table_fqn, chunk)
+            errors = client.insert_rows_json(clean_table, chunk)
             if errors:
-                raise RuntimeError(f"BigQuery insert into {table_fqn} failed: {errors}")
-            logger.info(f"Inserted {len(chunk)} row(s) into {table_fqn} (native streaming insert).")
+                raise RuntimeError(f"BigQuery insert into {clean_table} failed: {errors}")
+            logger.info(f"Inserted {len(chunk)} row(s) into {clean_table} (native streaming insert).")
 
     def insert_rows(self, table_fqn: str, records: List[Dict[str, Any]]):
         """Alias for insert_records_batch to maintain compatibility with standard BigQuery client conventions."""

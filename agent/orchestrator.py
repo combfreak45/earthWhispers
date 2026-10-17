@@ -1,7 +1,7 @@
 """
 EarthWhisper ADK Agent Orchestrator
 Coordinates Vertex AI XGBoost predictions, BigQuery MCP ImpactGraph lookups,
-and Gemini evidence synthesis.
+and Gemini 3.8 Flash evidence synthesis.
 """
 
 import os
@@ -18,7 +18,7 @@ from telemetry import get_tracer
 logger = logging.getLogger("earthwhisper-orchestrator")
 tracer = get_tracer()
 
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.8-flash")
 
 
 SYSTEM_INSTRUCTION = """You are EarthWhisper, an analytical flood-risk intelligence orchestrator built for the Google Cloud AI Builder Cup.
@@ -40,7 +40,7 @@ def synthesize_briefing_with_gemini(
     freshness_status: str
 ) -> str:
     """
-    Calls Gemini to compose the structured risk briefing.
+    Calls Gemini 3.8 Flash to compose the structured risk briefing.
     """
     with tracer.start_as_current_span("earthwhisper.gemini.synthesis") as span:
         span.set_attribute("model", GEMINI_MODEL)
@@ -58,7 +58,7 @@ def synthesize_briefing_with_gemini(
 2. Vertex AI ML Prediction (XGBoost):
 - Risk Class: {prediction['risk_class']} ({prediction['risk_label']})
 - Risk Score: {prediction['risk_score']}
-- Class Probabilities: Low: {prediction['class_probabilities']['low']}, Moderate: {prediction['class_probabilities']['moderate']}, Severe: {prediction['class_probabilities'].get('high', prediction['class_probabilities'].get('severe', 0.0))}
+- Class Probabilities: Low: {prediction['class_probabilities']['low']}, Moderate: {prediction['class_probabilities']['moderate']}, Severe: {prediction['class_probabilities']['severe']}
 - Top Contributing Drivers: {json.dumps(prediction.get('top_contributing_features', []))}
 
 3. BigQuery ImpactGraph Assets:
@@ -87,10 +87,10 @@ Write a structured briefing with these exact headers:
             return response.text
         except Exception as e:
             logger.warning(f"Gemini API call failed or running in test mode ({e}); generating grounded fallback template.")
-            sev_prob = prediction['class_probabilities'].get('high', prediction['class_probabilities'].get('severe', 0.0))
+            # Deterministic grounded template strictly using tool values
             return f"""### 1. Executive Risk Assessment
 **Overall Status: {prediction['risk_label'].upper()} RISK (Class {prediction['risk_class']})**
-The Vertex AI XGBoost predictive model estimates a calibrated flood risk score of **{prediction['risk_score']}** (Severe probability: {sev_prob:.2f}).
+The Vertex AI XGBoost predictive model estimates a calibrated flood risk score of **{prediction['risk_score']}** (Severe probability: {prediction['class_probabilities']['severe']:.2f}).
 
 ### 2. Physical & Meteorological Evidence
 - **Precipitation:** Cumulative 24-hour rainfall reached **{features.get('rain_24h_mm', 0)} mm**, with 72-hour antecedent rainfall totaling **{features.get('rain_72h_mm', 0)} mm**.
@@ -133,7 +133,7 @@ def run_orchestration(signal_payload: Dict[str, Any]) -> Dict[str, Any]:
         # 2. Tool Call: BigQuery ImpactGraph Lookup
         impact = lookup_impact_graph(catchment_id, risk_class=prediction["risk_class"], mode=mode)
 
-        # 3. Tool Call / Synthesis: Gemini Grounded Briefing
+        # 3. Tool Call / Synthesis: Gemini 3.8 Flash Grounded Briefing
         briefing = synthesize_briefing_with_gemini(features, prediction, impact, freshness_status)
 
         # 4. Policy Gate: Deduplication, Cooldown, and Escalation Checks

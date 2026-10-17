@@ -1,1 +1,1 @@
-# Tools package
+# EarthWhisper Agent Tools Package
