@@ -69,22 +69,26 @@ def predict_flood_risk(features: Dict[str, Any], mode: str = "live") -> Dict[str
 
         # Extract top feature drivers
         top_drivers = []
-        if features.get("rain_72h_zscore", 0) > 1.0:
+        z_val = float(features.get("rain_72h_zscore") or 0.0)
+        anom_val = float(features.get("rain_24h_anomaly_pct") or 0.0)
+        peak_val = float(features.get("rain_peak_1h_mm") or 0.0)
+
+        if z_val > 1.0:
             top_drivers.append({
                 "feature_name": "rain_72h_zscore",
-                "feature_value": float(features.get("rain_72h_zscore", 0)),
+                "feature_value": z_val,
                 "importance_weight": 0.38
             })
-        if features.get("rain_24h_anomaly_pct", 0) > 50.0:
+        if anom_val > 50.0:
             top_drivers.append({
                 "feature_name": "rain_24h_anomaly_pct",
-                "feature_value": float(features.get("rain_24h_anomaly_pct", 0)),
+                "feature_value": anom_val,
                 "importance_weight": 0.29
             })
-        if features.get("rain_peak_1h_mm", 0) > 20.0:
+        if peak_val > 20.0:
             top_drivers.append({
                 "feature_name": "rain_peak_1h_mm",
-                "feature_value": float(features.get("rain_peak_1h_mm", 0)),
+                "feature_value": peak_val,
                 "importance_weight": 0.21
             })
 

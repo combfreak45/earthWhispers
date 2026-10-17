@@ -5,8 +5,6 @@ Produces enriched data structures for app.py, sourced from:
   - BigQuery live dataset (`earthwhisper_live`) when populated and reachable
   - Historical replay scenarios (July 2024 Catastrophic Surge, June 2022, Dry Baseline)
     for seamless, reliable offline/live hackathon presentations.
-
-Ensures zero UI crashes, full evidence grounding, and support for interactive replay.
 """
 
 import os

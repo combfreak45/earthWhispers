@@ -118,23 +118,19 @@ class BigQueryMCPClient:
         else:
             raise NotImplementedError(f"MCP tool '{tool_name}' not implemented in fallback.")
 
-    def execute_query(self, sql_query: str, params: Optional[List[Any]] = None) -> List[Dict[str, Any]]:
+    def execute_query(self, sql_query: str, params: Optional[Any] = None) -> List[Dict[str, Any]]:
         """
         High-level method to execute a SQL query on BigQuery via the MCP toolset.
         Returns parsed list of record dictionaries for SELECT queries.
         """
-        logger.info(f"Executing SQL via BigQuery MCP Server: {sql_query[:100]}...")
-        # If parameters provided, interpolate scalar params for standard MCP execute
-        formatted_query = sql_query
         if params:
             for p in params:
-                param_name = getattr(p, "name", None)
-                param_val = getattr(p, "value", None)
-                if param_name and param_val is not None:
-                    val_str = f"'{param_val}'" if isinstance(param_val, str) else str(param_val)
-                    formatted_query = formatted_query.replace(f"@{param_name}", val_str)
+                if hasattr(p, "name") and hasattr(p, "value"):
+                    val_str = f"'{p.value}'" if isinstance(p.value, str) else str(p.value)
+                    sql_query = sql_query.replace(f"@{p.name}", val_str)
 
-        result = self.call_mcp_tool("execute_query", {"query": formatted_query})
+        logger.info(f"Executing SQL via BigQuery MCP Server: {sql_query[:100]}...")
+        result = self.call_mcp_tool("execute_query", {"query": sql_query})
 
         # Helper to parse standard BigQuery REST/MCP schema+rows format
         def _parse_bq_format(data_dict: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -241,7 +237,5 @@ class BigQueryMCPClient:
             logger.info(f"Inserted batch of {len(chunk)} rows into {table_fqn} via BigQuery MCP.")
 
     def insert_rows(self, table_fqn: str, records: List[Dict[str, Any]]):
-        """
-        Alias for insert_records_batch for compatibility with BigQuery client insert_rows signature.
-        """
+        """Alias for insert_records_batch to maintain compatibility with standard BigQuery client conventions."""
         return self.insert_records_batch(table_fqn, records)

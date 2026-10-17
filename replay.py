@@ -8,7 +8,7 @@ Runs the full LIVE pipeline via the deterministic orchestrator:
 Usage:
     python replay.py                               # live, default catchment
     python replay.py --catchment brahmaputra_lower_assam
-    python replay.py --mode mock --verbose
+    python replay.py --mode mock --scenario 2024_ASSAM_BRAHMAPUTRA_SURGE --verbose
 """
 import argparse
 import json
