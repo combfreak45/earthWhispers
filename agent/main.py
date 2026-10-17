@@ -55,8 +55,12 @@ def _run_agent(message: str, area_id: str) -> str:
 
 
 @app.route("/", methods=["POST"])
+@app.route("/events", methods=["POST"])
 def pubsub_handler():
-    """Receives Pub/Sub push message from EventArc and triggers the agent."""
+    """Receives Pub/Sub push message from EventArc and triggers the agent.
+
+    Served on both "/" and "/events" — the Pub/Sub push subscription targets /events.
+    """
     envelope = request.get_json(silent=True)
     if not envelope or "message" not in envelope:
         return jsonify({"error": "Invalid message"}), 400
