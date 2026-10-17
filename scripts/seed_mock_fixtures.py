@@ -65,7 +65,11 @@ def seed_mock_impact_graph(client: bigquery.Client, dataset_id: str = "earthwhis
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--project_id", default=os.getenv("PROJECT_ID", "earthwhisper-dev"))
+    parser.add_argument(
+        "--project_id",
+        default=os.getenv("PROJECT_ID") or os.getenv("GOOGLE_CLOUD_PROJECT") or "earth-whisper-ai-builders-cup",
+        help="GCP Project ID",
+    )
     args = parser.parse_args()
 
     bq = bigquery.Client(project=args.project_id)

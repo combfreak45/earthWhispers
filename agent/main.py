@@ -21,21 +21,52 @@ logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
-session_service = InMemorySessionService()
-runner = Runner(
-    agent=root_agent,
-    app_name="earthwhisper",
-    session_service=session_service,
-    auto_create_session=True,
-)
-
 APP_NAME = "earthwhisper"
 USER_ID = "system"
 
+session_service = InMemorySessionService()
+
+# Dynamically initialize Runner with cross-version google-adk compatibility
+import inspect
+runner_kwargs = {
+    "agent": root_agent,
+    "app_name": APP_NAME,
+    "session_service": session_service,
+}
+try:
+    sig = inspect.signature(Runner.__init__)
+    if "auto_create_session" in sig.parameters:
+        runner_kwargs["auto_create_session"] = True
+except Exception:
+    pass
+
+try:
+    runner = Runner(**runner_kwargs)
+except TypeError:
+    runner = Runner(
+        agent=root_agent,
+        app_name=APP_NAME,
+        session_service=session_service,
+    )
+
 
 def _run_agent(message: str, area_id: str) -> str:
-    """Run the agent — session is auto-created by the runner."""
+    """Run the agent — ensures session exists before running."""
     session_id = f"{area_id}_{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S%f')}"
+
+    # Explicitly ensure session exists for ADK versions without auto_create_session
+    if not getattr(runner, "auto_create_session", False):
+        try:
+            import asyncio
+            asyncio.run(
+                session_service.create_session(
+                    app_name=APP_NAME,
+                    user_id=USER_ID,
+                    session_id=session_id,
+                )
+            )
+        except Exception as e:
+            logger.debug(f"Pre-create session notice: {e}")
 
     final_response = None
     for event_chunk in runner.run(

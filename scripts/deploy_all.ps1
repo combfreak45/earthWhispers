@@ -37,13 +37,13 @@ python ml_engine/deploy_vertex.py --project_id="$ProjectId" --region="$Region"
 
 # 4. Build & Deploy Cloud Run Containers
 Write-Host "--> [4/5] Building & Deploying Cloud Run Services..." -ForegroundColor Yellow
-gcloud builds submit --tag "gcr.io/$ProjectId/earthwhisper-ingest-worker:v1" data_pipeline/
+gcloud builds submit --config cloudbuild-worker.yaml .
 gcloud run deploy earthwhisper-ingest-worker --image "gcr.io/$ProjectId/earthwhisper-ingest-worker:v1" --region "$Region" --project "$ProjectId"
 
-gcloud builds submit --tag "gcr.io/$ProjectId/earthwhisper-adk-agent:v1" agent/
+gcloud builds submit --config cloudbuild-agent.yaml .
 gcloud run deploy earthwhisper-adk-agent --image "gcr.io/$ProjectId/earthwhisper-adk-agent:v1" --region "$Region" --project "$ProjectId"
 
-gcloud builds submit --tag "gcr.io/$ProjectId/earthwhisper-dashboard:v1" dashboard/
+gcloud builds submit --config cloudbuild-dashboard.yaml .
 gcloud run deploy earthwhisper-dashboard --image "gcr.io/$ProjectId/earthwhisper-dashboard:v1" --region "$Region" --project "$ProjectId" --allow-unauthenticated
 
 # 5. Run Gen AI Evaluation Suite

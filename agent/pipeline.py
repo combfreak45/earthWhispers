@@ -28,6 +28,7 @@ from tools.summarize_tool import summarize_with_gemini
 from policy.alert_policy import check_alert_policy
 
 logger = logging.getLogger("earthwhisper-pipeline")
+logger.setLevel(logging.INFO)
 tracer = get_tracer()
 
 
@@ -68,6 +69,8 @@ def run_assessment(
         trace_id = get_current_trace_id()
         area_name = area_name or catchment_id
         tool_log = []
+
+        logger.info("catchment_id, mode, scenario_id : %s, %s, %s", catchment_id, mode, scenario_id)
 
         # 1. Telemetry -> 14 features (from the signal payload if provided, else BigQuery)
         if features:
@@ -145,12 +148,19 @@ def run_assessment(
 
         # 7. Assemble + write the compliance audit record
         now_iso = datetime.now(timezone.utc).isoformat()
+        obs_ts_str = str(observation_timestamp)
+        try:
+            obs_float = float(obs_ts_str)
+            obs_ts_iso = datetime.fromtimestamp(obs_float, tz=timezone.utc).isoformat()
+        except (ValueError, TypeError, OverflowError):
+            obs_ts_iso = obs_ts_str
+
         audit_record = {
             "audit_id": uuid.uuid4().hex,
             "execution_mode": mode,
             "trace_id": trace_id or "no-trace",
             "catchment_id": catchment_id,
-            "observation_timestamp": observation_timestamp,
+            "observation_timestamp": obs_ts_iso,
             "evaluation_timestamp": now_iso,
             "risk_score": risk_score,
             "risk_class": risk_class,

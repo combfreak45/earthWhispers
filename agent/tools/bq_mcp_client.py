@@ -12,12 +12,17 @@ STRICT GROUNDING & ZERO-MOCK PRODUCTION RULE:
 import os
 import sys
 import logging
+from datetime import datetime, timezone
 from typing import Dict, Any, List
 
 from google.cloud import bigquery
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
-from common.mcp_bq_client import BigQueryMCPClient
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+try:
+    from common.mcp_bq_client import BigQueryMCPClient
+except ImportError:
+    from mcp_bq_client import BigQueryMCPClient
 
 try:
     from telemetry import get_tracer
@@ -27,9 +32,29 @@ except ImportError:
         return trace.get_tracer("earthwhisper-bq-mcp")
 
 logger = logging.getLogger("earthwhisper-bq-mcp")
+logger.setLevel(logging.INFO)
 tracer = get_tracer()
 
-PROJECT_ID = os.getenv("PROJECT_ID", "earthwhisper-dev")
+def _resolve_project_id() -> str:
+    try:
+        from dotenv import load_dotenv
+        load_dotenv()
+    except Exception:
+        pass
+    for var in ("PROJECT_ID", "GOOGLE_CLOUD_PROJECT", "GCP_PROJECT"):
+        val = os.getenv(var)
+        if val and val.strip():
+            return val.strip()
+    try:
+        import google.auth
+        _, auth_project = google.auth.default()
+        if auth_project and auth_project.strip():
+            return auth_project.strip()
+    except Exception:
+        pass
+    return os.getenv("DEFAULT_GCP_PROJECT", "earth-whisper-ai-builders-cup")
+
+PROJECT_ID = _resolve_project_id()
 DATASET_LIVE = os.getenv("BIGQUERY_DATASET_LIVE", "earthwhisper_live")
 DATASET_MOCK = os.getenv("BIGQUERY_DATASET_MOCK", "earthwhisper_mock")
 
@@ -55,7 +80,15 @@ def _jsonable(row: Dict[str, Any]) -> Dict[str, Any]:
     """Make a BigQuery row JSON/ADK-safe (TIMESTAMP -> ISO 8601 string)."""
     out = {}
     for k, v in row.items():
-        out[k] = v.isoformat() if hasattr(v, "isoformat") else v
+        if hasattr(v, "isoformat"):
+            out[k] = v.isoformat()
+        elif ("timestamp" in k.lower() or "time" in k.lower()) and v is not None:
+            try:
+                out[k] = datetime.fromtimestamp(float(str(v)), tz=timezone.utc).isoformat()
+            except (ValueError, TypeError, OverflowError):
+                out[k] = v
+        else:
+            out[k] = v
     return out
 
 
@@ -94,6 +127,17 @@ def lookup_impact_graph(
         except Exception as e:
             logger.warning(f"BigQuery MCP impact lookup query error: {e}")
             records = []
+
+        if not records and mode == "live":
+            try:
+                from google.cloud import bigquery as bq_direct
+                direct_client = bq_direct.Client(project=PROJECT_ID)
+                direct_rows = list(direct_client.query(query).result())
+                if direct_rows:
+                    records = [dict(r.items()) for r in direct_rows]
+                    logger.info(f"Direct BigQuery impact lookup retrieved {len(records)} assets.")
+            except Exception as direct_err:
+                logger.warning(f"Direct BigQuery impact lookup error: {direct_err}")
 
         if not records and mode == "mock":
             records = [
@@ -149,7 +193,10 @@ def fetch_latest_features(
         # In mock mode, immediately return the selected historical replay fixture
         if mode == "mock":
             try:
-                from replay_generator import get_mock_scenario  # lazy: only present where data_pipeline is on path
+                try:
+                    from common.replay_generator import get_mock_scenario
+                except ImportError:
+                    from replay_generator import get_mock_scenario
                 scenario_data = get_mock_scenario(scenario_id)
                 features = {k: scenario_data.get(k) for k in FEATURE_COLUMNS}
                 obs_ts = scenario_data.get("observation_timestamp")
@@ -166,11 +213,13 @@ def fetch_latest_features(
                 }
             except Exception as e:
                 return {"error": f"Failed loading mock scenario {scenario_id}: {e}", "features": {}}
-
+       
         # In live mode, query BigQuery live dataset
         dataset = DATASET_LIVE
         table_ref = f"`{PROJECT_ID}.{dataset}.catchment_features`"
         cols = ", ".join(FEATURE_COLUMNS)
+        logger.info("dataset, table_ref, scenario_id : %s, %s, %s", dataset, table_ref, scenario_id)
+
         query = f"""
             SELECT catchment_id, observation_timestamp, ingestion_timestamp,
                    {cols}, freshness_status, feature_version
@@ -185,8 +234,20 @@ def fetch_latest_features(
         try:
             rows = get_mcp_client().execute_query(query, params)
         except Exception as e:
-            logger.warning(f"catchment_features query error: {e}")
-            return {"error": f"Live BigQuery telemetry query failed: {e}", "features": {}}
+            logger.warning(f"catchment_features MCP query error: {e}")
+
+        if not rows:
+            logger.info("MCP execute_query returned empty list. Retrying with direct BigQuery client...")
+            try:
+                from google.cloud import bigquery as bq_direct
+                direct_client = bq_direct.Client(project=PROJECT_ID)
+                job_config = bq_direct.QueryJobConfig(query_parameters=params)
+                direct_rows = list(direct_client.query(query, job_config=job_config).result())
+                if direct_rows:
+                    rows = [dict(r.items()) for r in direct_rows]
+                    logger.info("Direct BigQuery query returned %d row(s).", len(rows))
+            except Exception as direct_err:
+                logger.warning("Direct BigQuery query attempt also failed: %s", direct_err)
 
         if not rows:
             return {
@@ -246,6 +307,17 @@ def get_climate_baseline(
             if mode == "live":
                 return {"error": f"Baseline query failed: {e}"}
 
+        if not rows and mode == "live":
+            try:
+                from google.cloud import bigquery as bq_direct
+                direct_client = bq_direct.Client(project=PROJECT_ID)
+                job_config = bq_direct.QueryJobConfig(query_parameters=params)
+                direct_rows = list(direct_client.query(query, job_config=job_config).result())
+                if direct_rows:
+                    rows = [dict(r.items()) for r in direct_rows]
+            except Exception as direct_err:
+                logger.warning(f"Direct BigQuery baseline query error: {direct_err}")
+
         if not rows:
             if mode == "live":
                 return {"error": f"No baseline found for catchment_id={catchment_id}, doy={doy}"}
@@ -279,8 +351,19 @@ def write_alert_audit(record: Dict[str, Any], mode: str = "live") -> Dict[str, A
             logger.info(f"Audit {record.get('audit_id')} written to {table_id}.")
             return {"status": "written", "audit_id": record.get("audit_id"), "table": table_id}
         except Exception as e:
-            logger.warning(f"BigQuery audit write failed: {e}")
-            if mode == "live":
-                raise
-            return {"status": "mock_recorded", "audit_id": record.get("audit_id"), "table": table_id}
+            logger.warning(f"BigQuery audit write failed via MCP client ({e}). Retrying via direct client...")
+            try:
+                from google.cloud import bigquery as bq_direct
+                direct_client = bq_direct.Client(project=PROJECT_ID)
+                table = direct_client.get_table(table_id)
+                errors = direct_client.insert_rows_json(table, [record])
+                if errors:
+                    raise RuntimeError(f"insert_rows_json errors: {errors}")
+                logger.info(f"Audit {record.get('audit_id')} written to {table_id} via direct BigQuery client.")
+                return {"status": "written", "audit_id": record.get("audit_id"), "table": table_id}
+            except Exception as d_err:
+                logger.error(f"Direct BigQuery audit write failed: {d_err}")
+                if mode == "live":
+                    raise d_err
+                return {"status": "mock_recorded", "audit_id": record.get("audit_id"), "table": table_id}
 

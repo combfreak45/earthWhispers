@@ -44,21 +44,21 @@ python ml_engine/deploy_vertex.py --project_id="${PROJECT_ID}" --region="${REGIO
 # 4. Build & Deploy Cloud Run Containers
 echo "--> [4/5] Building & Deploying Cloud Run Services..."
 # Build Ingestion Worker
-gcloud builds submit --tag "gcr.io/${PROJECT_ID}/earthwhisper-ingest-worker:v1" data_pipeline/
+gcloud builds submit --config cloudbuild-worker.yaml .
 gcloud run deploy earthwhisper-ingest-worker \
     --image "gcr.io/${PROJECT_ID}/earthwhisper-ingest-worker:v1" \
     --region "${REGION}" \
     --project "${PROJECT_ID}"
 
 # Build ADK Agent
-gcloud builds submit --tag "gcr.io/${PROJECT_ID}/earthwhisper-adk-agent:v1" agent/
+gcloud builds submit --config cloudbuild-agent.yaml .
 gcloud run deploy earthwhisper-adk-agent \
     --image "gcr.io/${PROJECT_ID}/earthwhisper-adk-agent:v1" \
     --region "${REGION}" \
     --project "${PROJECT_ID}"
 
 # Build Streamlit Dashboard
-gcloud builds submit --tag "gcr.io/${PROJECT_ID}/earthwhisper-dashboard:v1" dashboard/
+gcloud builds submit --config cloudbuild-dashboard.yaml .
 gcloud run deploy earthwhisper-dashboard \
     --image "gcr.io/${PROJECT_ID}/earthwhisper-dashboard:v1" \
     --region "${REGION}" \

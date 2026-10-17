@@ -18,8 +18,11 @@ logger = logging.getLogger("earthwhisper-seeder-dispatcher")
 
 
 def main():
-    parser = argparse.ArgumentParser(description="EarthWhisper BigQuery Seeder Dispatcher")
-    parser.add_argument("--project_id", default=os.getenv("PROJECT_ID", "earthwhisper-dev"), help="GCP Project ID")
+    parser.add_argument(
+        "--project_id",
+        default=os.getenv("PROJECT_ID") or os.getenv("GOOGLE_CLOUD_PROJECT") or "earth-whisper-ai-builders-cup",
+        help="GCP Project ID (defaults to PROJECT_ID or GOOGLE_CLOUD_PROJECT env var)",
+    )
     parser.add_argument("--mode", required=True, choices=["live", "mock"], help="Execution mode: 'live' or 'mock'")
     args = parser.parse_args()
 
