@@ -11,10 +11,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt .
+COPY data_pipeline/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY . .
+# Shared library + worker code (build context is the repo root)
+COPY common/ /app/common/
+COPY data_pipeline/ /app/
 
 EXPOSE 8080
 

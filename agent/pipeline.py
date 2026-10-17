@@ -52,8 +52,15 @@ def run_assessment(
     mode: str = "live",
     area_name: str = None,
     scenario_id: str = "2024_ASSAM_BRAHMAPUTRA_SURGE",
+    features: dict = None,
+    observation_timestamp: str = None,
+    freshness_status: str = None,
 ) -> dict:
-    """Run the end-to-end assessment and append an audit record. Returns a structured result."""
+    """Run the end-to-end assessment and append an audit record. Returns a structured result.
+
+    If `features` is supplied (e.g. straight from a Pub/Sub signal the ingest worker
+    published), the BigQuery telemetry re-fetch is skipped and those features are used.
+    """
     with tracer.start_as_current_span("earthwhisper.pipeline.run_assessment") as span:
         span.set_attribute("execution_mode", mode)
         span.set_attribute("catchment_id", catchment_id)
@@ -62,9 +69,21 @@ def run_assessment(
         area_name = area_name or catchment_id
         tool_log = []
 
-        # 1. Latest telemetry -> 14 features
-        feat = fetch_latest_features(catchment_id, mode=mode, scenario_id=scenario_id)
-        tool_log.append({"tool": "fetch_latest_features", "ok": "error" not in feat})
+        # 1. Telemetry -> 14 features (from the signal payload if provided, else BigQuery)
+        if features:
+            feat = {
+                "features": features,
+                "observation_timestamp": observation_timestamp or datetime.now(timezone.utc).isoformat(),
+                "freshness_status": freshness_status or "FRESH_NOMINAL",
+                "feature_version": "from-signal",
+            }
+        else:
+            feat = fetch_latest_features(catchment_id, mode=mode, scenario_id=scenario_id)
+        tool_log.append({
+            "tool": "fetch_latest_features",
+            "ok": "error" not in feat,
+            "source": "signal" if features else "bigquery",
+        })
         if feat.get("error") or not feat.get("features"):
             msg = feat.get("error", "No telemetry available")
             logger.warning("Assessment aborted: %s", msg)

@@ -1,0 +1,11 @@
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -f
+      - data_pipeline/Dockerfile
+      - -t
+      - gcr.io/$PROJECT_ID/earthwhisper-ingest-worker:v1
+      - .
+images:
+  - gcr.io/$PROJECT_ID/earthwhisper-ingest-worker:v1

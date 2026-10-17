@@ -19,7 +19,9 @@ from ee_extractor import extract_live_catchment_features, DataSourceUnavailableE
 from baseline_calculator import compute_derived_features
 from freshness_validator import validate_observation_quality
 from replay_generator import get_mock_scenario
-from mcp_bq_client import BigQueryMCPClient
+import sys
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+from common.mcp_bq_client import BigQueryMCPClient
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("earthwhisper-ingest-worker")

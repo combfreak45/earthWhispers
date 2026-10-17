@@ -69,23 +69,32 @@ def pubsub_handler():
         logger.error(f"Failed to decode message: {e}")
         return jsonify({"error": "Bad message payload"}), 400
 
-    area_id = event.get("area_id")
+    # Worker publishes "catchment_id"; older/manual signals may use "area_id".
+    catchment_id = event.get("catchment_id") or event.get("area_id")
     event_id = event.get("event_id")
-    if not area_id or not event_id:
-        return jsonify({"error": "Missing area_id or event_id"}), 400
+    if not catchment_id or not event_id:
+        return jsonify({"error": "Missing catchment_id/area_id or event_id"}), 400
 
-    logger.info(f"Received signal event: event_id={event_id}, area_id={area_id}")
-    # Deterministic assessment + compliance audit (orchestration-level).
-    result = run_assessment(catchment_id=area_id, mode="live")
+    logger.info(f"Received signal event: event_id={event_id}, catchment_id={catchment_id}")
+    # Use the 14 features the worker already shipped in the signal (no BQ re-fetch);
+    # falls back to a BigQuery fetch inside run_assessment if the payload lacks them.
+    result = run_assessment(
+        catchment_id=catchment_id,
+        mode=event.get("mode", "live"),
+        features=event.get("features"),
+        observation_timestamp=event.get("observation_timestamp"),
+        freshness_status=event.get("freshness_status"),
+    )
     pred = result.get("prediction", {})
     return jsonify({
         "status": result.get("status"),
-        "catchment_id": area_id,
+        "catchment_id": catchment_id,
         "event_id": event_id,
         "risk_label": pred.get("risk_label"),
         "risk_score": pred.get("risk_score"),
         "policy_decision": result.get("policy", {}).get("decision"),
         "summary": result.get("summary"),
+        "error": result.get("error"),
         "audit": result.get("audit"),
     }), 200
 

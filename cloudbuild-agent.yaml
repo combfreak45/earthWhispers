@@ -1,0 +1,11 @@
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -f
+      - agent/Dockerfile
+      - -t
+      - gcr.io/$PROJECT_ID/earthwhisper-adk-agent:v1
+      - .
+images:
+  - gcr.io/$PROJECT_ID/earthwhisper-adk-agent:v1

@@ -16,18 +16,8 @@ from typing import Dict, Any, List
 
 from google.cloud import bigquery
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "data_pipeline")))
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-try:
-    from mcp_bq_client import BigQueryMCPClient
-except ImportError:
-    try:
-        from tools.mcp_bq_client import BigQueryMCPClient
-    except ImportError:
-        try:
-            from data_pipeline.mcp_bq_client import BigQueryMCPClient
-        except ImportError:
-            BigQueryMCPClient = None
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
+from common.mcp_bq_client import BigQueryMCPClient
 
 try:
     from telemetry import get_tracer

@@ -120,62 +120,22 @@ class BigQueryMCPClient:
 
     def execute_query(self, sql_query: str, params: Optional[Any] = None) -> List[Dict[str, Any]]:
         """
-        High-level method to execute a SQL query on BigQuery via the MCP toolset.
-        Returns parsed list of record dictionaries for SELECT queries.
+        Execute a SQL query on BigQuery using the native google-cloud-bigquery client
+        with real parameterized queries.
+
+        The managed MCP HTTP endpoint returns 200 for reads but its row-response format
+        did not parse reliably (populated tables came back empty), so reads go through
+        the authoritative native client directly. Writes still use the MCP tool path.
         """
-        if params:
-            for p in params:
-                if hasattr(p, "name") and hasattr(p, "value"):
-                    val_str = f"'{p.value}'" if isinstance(p.value, str) else str(p.value)
-                    sql_query = sql_query.replace(f"@{p.name}", val_str)
-
-        logger.info(f"Executing SQL via BigQuery MCP Server: {sql_query[:100]}...")
-        result = self.call_mcp_tool("execute_query", {"query": sql_query})
-
-        # Helper to parse standard BigQuery REST/MCP schema+rows format
-        def _parse_bq_format(data_dict: Dict[str, Any]) -> List[Dict[str, Any]]:
-            schema = data_dict.get("schema", {})
-            fields = [f.get("name") for f in schema.get("fields", []) if f.get("name")]
-            raw_rows = data_dict.get("rows", [])
-            if not raw_rows or not fields:
-                return []
-            parsed = []
-            for r in raw_rows:
-                cells = r.get("f", [])
-                row = {}
-                for idx, cell in enumerate(cells):
-                    if idx < len(fields):
-                        row[fields[idx]] = cell.get("v")
-                parsed.append(row)
-            return parsed
-
-        # Parse rows from direct or structuredContent MCP output
-        if "rows" in result:
-            if isinstance(result["rows"], list) and result["rows"] and isinstance(result["rows"][0], dict) and "f" in result["rows"][0]:
-                return _parse_bq_format(result)
-            return result["rows"]
-
-        structured = result.get("structuredContent", {})
-        if "rows" in structured:
-            parsed = _parse_bq_format(structured)
-            if parsed:
-                return parsed
-
-        # Parse text content from standard MCP tool response structure
-        content = result.get("content", [])
-        for item in content:
-            if item.get("type") == "text":
-                text = item.get("text", "")
-                try:
-                    parsed = json.loads(text)
-                    if isinstance(parsed, list):
-                        return parsed
-                    elif isinstance(parsed, dict) and "rows" in parsed:
-                        extracted = _parse_bq_format(parsed)
-                        if extracted:
-                            return extracted
-                except Exception:
-                    pass
+        from google.cloud import bigquery
+        client = bigquery.Client(project=self.project_id)
+        job_config = bigquery.QueryJobConfig(query_parameters=list(params)) if params else None
+        logger.info(f"Executing SQL via BigQuery (native client): {sql_query[:100]}...")
+        job = client.query(sql_query, job_config=job_config)
+        head = sql_query.strip().upper()
+        if head.startswith("SELECT") or head.startswith("WITH"):
+            return [dict(r.items()) for r in job.result()]
+        job.result()
         return []
 
     def insert_record(self, table_fqn: str, record: Dict[str, Any]):

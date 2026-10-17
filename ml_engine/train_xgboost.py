@@ -15,8 +15,8 @@ import pandas as pd
 import xgboost as xgb
 from sklearn.metrics import classification_report, accuracy_score, f1_score, roc_auc_score
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "data_pipeline")))
-from mcp_bq_client import BigQueryMCPClient
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+from common.mcp_bq_client import BigQueryMCPClient
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("earthwhisper-trainer")

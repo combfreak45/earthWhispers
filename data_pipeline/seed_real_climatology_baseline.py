@@ -30,7 +30,8 @@ except ImportError:
     )
 
 import numpy as np
-from mcp_bq_client import BigQueryMCPClient
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+from common.mcp_bq_client import BigQueryMCPClient
 from catchment_geometry import get_catchment_geometry
 
 logging.basicConfig(level=logging.INFO)

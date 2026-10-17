@@ -24,7 +24,9 @@ except ImportError:
         "Please install it with: pip install earthengine-api (or pip install -r requirements.txt)"
     )
 
-from mcp_bq_client import BigQueryMCPClient
+import sys
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+from common.mcp_bq_client import BigQueryMCPClient
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("earthwhisper-real-impact-seeder")

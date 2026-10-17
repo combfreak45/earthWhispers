@@ -27,7 +27,8 @@ except ImportError:
         "Please install it with: pip install earthengine-api (or pip install -r requirements.txt)"
     )
 
-from mcp_bq_client import BigQueryMCPClient
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+from common.mcp_bq_client import BigQueryMCPClient
 from catchment_geometry import get_catchment_geometry
 
 logging.basicConfig(level=logging.INFO)
