@@ -140,9 +140,6 @@ def lookup_impact_graph(
         return payload
 
 
-from replay_generator import get_mock_scenario
-
-
 def fetch_latest_features(
     catchment_id: str = "brahmaputra_lower_assam",
     mode: str = "live",
@@ -162,6 +159,7 @@ def fetch_latest_features(
         # In mock mode, immediately return the selected historical replay fixture
         if mode == "mock":
             try:
+                from replay_generator import get_mock_scenario  # lazy: only present where data_pipeline is on path
                 scenario_data = get_mock_scenario(scenario_id)
                 features = {k: scenario_data.get(k) for k in FEATURE_COLUMNS}
                 obs_ts = scenario_data.get("observation_timestamp")
