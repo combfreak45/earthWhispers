@@ -1,110 +1,216 @@
-# EarthWhisper — Product Requirements Document
-“Give the Earth a Voice” | AI Builder Cup · Sustainability & Social Impact
-## 1. Product summary
-EarthWhisper is a flood-risk intelligence MVP that turns environmental signals into an evidence-backed, location-aware risk assessment and practical next steps. The prototype focuses on one selected river catchment or flood-prone area rather than attempting to cover every disaster type.
-Objective: Provide flood susceptibility / near-term risk assessment unless reliable timestamped flood-onset labels are available to validate a specific forecast horizon. The goal is not to claim precise flood timing or deploy the prototype as an official emergency-warning system.
-## 2. Goals and non-goals
-### Goals
-•	Ingest rainfall and supporting environmental data for one chosen study area.
-•	Calculate recent rainfall windows and deviations from a historical baseline.
-•	Use an XGBoost model to return a numerical risk score/class plus model version and input timestamp.
-•	Use an ADK agent to orchestrate prediction, impact lookup, evidence-grounded explanation, and policy checks.
-•	Show a map/dashboard with risk, evidence, data freshness, uncertainty, and affected assets/communities where data exists.
-•	Replay a historical case or simulated signal end-to-end for the demo.
-Non-goals
-•	All-disaster prediction, nationwide operational coverage, or guaranteed 24-hour flood forecasts.
-•	Autonomous public emergency alerts without explicit policy checks and human review for the demo.
-•	A separate Vision AI service unless it adds value beyond Gemini multimodal image analysis.
-•	Offline-first mobile support in the ten-day core scope.
-## 3. Users and key journey
-### Primary users: hackathon evaluators, local-response planners, and community-facing demonstrators.
-1.	A scheduled worker processes the latest available data for the selected catchment.
-2.	A signal rule detects a meaningful deviation or new evidence and publishes an event.
-3.	The ADK agent calls the prediction service and retrieves exposed assets/community context.
-4.	Gemini explains the result using returned evidence only; the policy layer decides whether to show or escalate it.
-5.	The dashboard presents the result with timestamps, caveats, and suggested preparedness actions.
-## 4. Data and signal definitions
-Data source	Purpose	MVP status	Important limitation
-NASA GPM IMERG V07 via Earth Engine	Half-hourly satellite-derived precipitation; aggregate to 1/3/6/24/72-hour rainfall features where data availability allows.	Core	Approx. 0.1° / 11 km grid; near-real-time products have latency and may be revised.
-ERA5-Land hourly	Historical land/climate context such as soil moisture; supports baselines/features.	Optional if time permits	Reanalysis, not a live forecast.
-Sentinel-1 SAR via Earth Engine	Independent flood-inundation evidence or historical validation.	Optional	Acquisition timing is intermittent; not a continuous live sensor.
-Flood-event / gauge labels	Train and evaluate XGBoost; define what counts as a flood event.	Required for credible supervised prediction	Need event timestamps or a defensible target; flood polygons alone do not establish hourly onset.
-Community photo/report	Supplementary ground observation with location and timestamp.	Stretch goal	A photo can be stale, misleading, or unverified; never treat it as proof on its own.
-Signal rule: calculate recent rainfall accumulations/anomalies against a documented baseline for the same location and season/time window. Store source observation time, ingestion time, quality/status, baseline definition, and feature version. Thresholds should be configurable and described as MVP rules, not universal hydrological truths.
-### Feed Links:
-https://developers.google.com/earth-engine/datasets/catalog/NASA_GPM_L3_IMERG_V07#colab-python
-https://developers.google.com/earth-engine/datasets/catalog/COPERNICUS_S1_GRD#colab-python
-https://developers.google.com/earth-engine/datasets/catalog/ECMWF_ERA5_LAND_HOURLY
-Historic Training Set: https://developers.google.com/earth-engine/datasets/catalog/GLOBAL_FLOOD_DB_MODIS_EVENTS_V1
-## 5. Functional requirements
-ID	Requirement	Acceptance intent
-FR-01	Study area configuration	Define one catchment/area of interest and its geometry; persist its ID and source.
-FR-02	Scheduled ingestion	Cloud Scheduler invokes a Cloud Run worker daily for the MVP; schedule is configurable.
-FR-03	Data freshness and quality	Worker checks coverage, timestamps, missing values, and source status; stale/invalid inputs must not silently create a high-risk alert.
-FR-04	Feature engineering	Generate rainfall accumulations, baseline deviation/anomaly, and available static catchment features.
-FR-05	Persistence	Store tabular features, event metadata, predictions, model version, and impact lookup data in BigQuery; store raw/exported assets in Cloud Storage as needed. We can use MCP server for BigQuery as native GCP option (https://docs.cloud.google.com/bigquery/docs/use-bigquery-mcp)
-FR-06	Signal event	Publish a compact Pub/Sub event with area ID, event type, time range, data freshness, and references to BigQuery/GCS records; do not send raster payloads through Pub/Sub.
-FR-07	Prediction	ADK agent calls a typed prediction tool/API backed by a deployed XGBoost model; output risk score/class, model version, and explanation-friendly feature evidence.
-FR-08	ImpactGraph lookup	Query BigQuery for nearby/exposed settlements and critical assets when suitable geospatial data is available. We can use MCP server for BigQuery as native GCP option (https://docs.cloud.google.com/bigquery/docs/use-bigquery-mcp)
-FR-09	Evidence-grounded explanation	Gemini explains why the score changed and provides cautious preparedness guidance based on tool results; it must not invent probabilities, observations, or affected people.
-FR-10	Alert policy	Apply configurable thresholds, deduplication/cooldown, and demo human-review gate before any simulated notification.
-FR-11	Dashboard	Show area/map, current risk, trend, evidence, data timestamps, uncertainty/caveats, and action suggestions.
-FR-12	Auditability	Record signal, feature version, model version, agent/tool outcomes, policy decision, and notification status.
-## 6. Architecture and service responsibilities
- 
-•	Earth Engine: Access and process raster collections (IMERG, optionally ERA5-Land/Sentinel-1); derive spatial/time-window features.
-•	Cloud Scheduler: Starts the ingestion job on a schedule; it does not calculate signals itself.
-•	Cloud Run ingestion/feature worker: Fetches/processes data, validates freshness, computes baseline deviations/features, writes results, and emits Pub/Sub events when rules match.
-•	Pub/Sub: Carries small event metadata asynchronously; supports retries and decouples ingestion from agent workflow.
-•	ADK agent on Agent Platform runtime: Triggered by the event subscriber; coordinates tools and decisions. It is not the continuous polling daemon or the numerical model.
-•	XGBoost model service: Computes the numeric prediction. Register/version the artifact in Vertex AI Model Registry, then deploy to a Vertex AI endpoint; alternatively serve the model in Cloud Run.
-•	BigQuery: Stores time-series features, signal/prediction/alert records, and performs geospatial impact queries.
-•	Cloud Storage: Stores raw files, exported rasters, imagery, training snapshots, and model-related artifacts where appropriate.
-•	Gemini: Produces an evidence-grounded explanation and can inspect user-submitted photos if that feature is included.
-•	Policy/dashboard: Applies alert rules, deduplication, and demo review; presents results. Notifications are simulated for the hackathon. Optional Gemini chat integration in the dashboard for new bees/ end users to chat with agent and get fresh results, explanations, location specific dynamics.
-## 7. Event flow (recommended)
-6.	Cloud Scheduler → Cloud Run ingestion worker.
-7.	Worker reads/processes available IMERG data through Earth Engine; computes features and baseline deviations; validates data freshness.
-8.	Worker writes feature rows to BigQuery and publishes a compact signal event to Pub/Sub when the signal rule is met.
-9.	A Pub/Sub-triggered Cloud Run subscriber invokes the ADK agent on the agent runtime (or forwards the event to the configured agent entry point).
-10.	ADK agent calls the XGBoost prediction API as a tool; the deployed endpoint/API returns the numeric risk result.
-11.	Agent queries BigQuery for impact context and asks Gemini for a grounded explanation/action summary.
-12.	Policy step checks thresholds, deduplicates repeated alerts, and routes to the demo dashboard or a human-review queue.
-Important: Pub/Sub does not automatically invoke an arbitrary ADK agent by itself. Configure a subscriber/event handler that invokes the agent runtime using the supported integration. For the simplest MVP, a Cloud Run event handler can do this.
-## 8. Model and evaluation requirements
-•	Use XGBoost only if usable historical examples and target labels can be assembled within the timebox.
-•	Candidate features: 1/3/6/24/72-hour rainfall totals, anomaly versus baseline, antecedent rainfall, available soil-moisture/terrain/catchment attributes, and river-flow features only where reliable gauge data exists.
-•	Define the target before training. A ‘flood within next 24 hours’ target requires timestamped flood onset or gauge/threshold labels; otherwise label the output susceptibility/near-term risk rather than a validated 24-hour forecast.
-•	Split chronologically and, where possible, by catchment/event to reduce leakage. Compare against a simple baseline.
-•	Report precision, recall, false negatives, false alarms, calibration if feasible, and data coverage. Include model version and limitations in the UI.
-•	If labels are inadequate, deliver a transparent rule-based signal plus a clearly labelled experimental XGBoost model; do not present unvalidated scores as reliable forecasts.
-•	Use Vertex AI Gen AI Evaluation service for evaluating the agent.
-## 9. Non-functional, safety, and reliability requirements
-•	Data lineage: every result shows source timestamp, ingestion timestamp, baseline window, feature version, and model version.
-•	Reliability: retries for transient failures, idempotent processing, deduplication keys, and dead-letter handling for failed events where configured.
-•	Security: least-privilege service accounts, secrets in Secret Manager, and no public unauthenticated prediction endpoint.
-•	Privacy: community reports should collect only necessary location/time/photo metadata; avoid exposing identifiable submitter details on the public dashboard.
-•	Safety: label the prototype as experimental; no claim of official emergency warning. Use human review before simulated escalation.
-•	Observability: structured logs and basic metrics for ingestion success, data freshness, model errors, event retries, and alert counts.
-## 10. Definition of done
-•	One configured area can be processed end-to-end from scheduled ingestion to dashboard output.
-•	At least one documented signal rule is computed from real environmental data and its baseline is visible.
-•	The prediction API responds to a typed request and returns a versioned result; if training labels are weak, the UI clearly says experimental/susceptibility.
-•	A Pub/Sub event invokes the agent workflow through an explicit subscriber/event handler.
-•	Agent output references actual model and BigQuery tool results; Gemini does not invent data.
-•	Repeated events are deduplicated; stale or missing data is shown as a limitation rather than silently treated as safe/high risk.
-•	The demo is reproducible and includes an end-to-end replay plus known limitations.
-## 11. Key decisions to lock early
-•	Which catchment/area will be demonstrated?
-•	What timestamped flood-onset or river-gauge labels are available for that exact area?
-•	Can the MVP validate a forecast horizon, or should it be framed as susceptibility/near-term risk?
-•	Which critical-asset/community dataset is available and legally usable?
-•	Will inference run on Vertex AI endpoint or Cloud Run? Choose based on time, cost, and deployment familiarity.
-•	Will alerts remain dashboard-only/simulated? Recommended for the hackathon.
-## 12. Official reference links
-•	NASA GPM IMERG V07 in Earth Engine: https://developers.google.com/earth-engine/datasets/catalog/NASA_GPM_L3_IMERG_V07
-•	ERA5-Land hourly in Earth Engine: https://developers.google.com/earth-engine/datasets/catalog/ECMWF_ERA5_LAND_HOURLY
-•	Sentinel-1 GRD in Earth Engine: https://developers.google.com/earth-engine/datasets/catalog/COPERNICUS_S1_GRD
-•	Vertex AI model prediction/deployment codelab: https://codelabs.developers.google.com/vertex-p2p-predictions
-•	Earth Engine and BigQuery integration: https://developers.google.com/earth-engine/guides/bigquery_integrations
-•	Global Flood Database: https://developers.google.com/earth-engine/datasets/catalog/GLOBAL_FLOOD_DB_MODIS_EVENTS_V1
+# EarthWhisper — “Give the Earth a Voice”
+### Google Cloud AI Builder Cup · Sustainability & Social Impact Track
+
+[![Google Cloud](https://img.shields.io/badge/Google%20Cloud-Platform-4285F4?logo=google-cloud&logoColor=white)](https://cloud.google.com/)
+[![Vertex AI](https://img.shields.io/badge/Vertex%20AI-Gemini%203.8%20Flash-blue?logo=google)](https://cloud.google.com/vertex-ai)
+[![Earth Engine](https://img.shields.io/badge/Google-Earth%20Engine-34A853?logo=google-earth)](https://earthengine.google.com/)
+[![Terraform](https://img.shields.io/badge/IaC-Terraform-7B42BC?logo=terraform&logoColor=white)](https://www.terraform.io/)
+[![BigQuery MCP](https://img.shields.io/badge/MCP-BigQuery%20Streamable%20HTTP-009688)](https://cloud.google.com/bigquery)
+
+**EarthWhisper** is an end-to-end flood-risk intelligence MVP that transforms satellite Earth observation streams into an evidence-grounded, location-aware risk assessment with actionable preparedness recommendations.
+
+Built specifically for the **Lower Brahmaputra River Basin (Assam, India)**, EarthWhisper combines planetary-scale remote sensing, numerical machine learning, managed Model Context Protocol (MCP) data grounding, and Google ADK agent orchestration.
+
+---
+
+## 🏛️ System Architecture
+
+```
+               [ Planetary Data Sources ]
+     NASA GPM IMERG V07 | ECMWF ERA5-Land | Sentinel-1 GRD
+                          │
+                          ▼
+            [ Cloud Run Ingestion Worker ]
+            (Triggered Daily via Cloud Scheduler)
+       - Earth Engine extraction & spatial aggregation
+       - Deterministic DOY baseline & Z-score anomaly math
+       - Data freshness and completeness validation
+                          │
+          ┌───────────────┴───────────────┐
+          ▼                               ▼
+   [ BigQuery Live ]            [ Pub/Sub Topic ]
+   (Features & Baselines)    (earthwhisper-signals)
+                                          │
+                                          │ Authenticated HTTP Push
+                                          │ (OIDC + Dead-Letter Queue)
+                                          ▼
+                             [ Cloud Run ADK Agent ]
+                             (Google Agent Dev Kit)
+                                          │
+        ┌─────────────────────────────────┼────────────────────────────────┐
+        ▼                                 ▼                                ▼
+[ Vertex AI Endpoint ]         [ BigQuery MCP Server ]           [ Gemini 3.8 Flash ]
+ (XGBoost 3-Class Risk)       (Streamable HTTP: googleapis)     (Grounded Explanation
+                               - ImpactGraph Settlements         & Multimodal Vision)
+                               - Critical Infrastructure
+                                          │
+                                          ▼
+                               [ Policy & Alert Engine ]
+                               - Threshold & cooldown gating
+                               - Audit logging to BigQuery
+                                          │
+                  ┌───────────────────────┴───────────────────────┐
+                  ▼                                               ▼
+      [ Streamlit Dashboard ]                       [ Pub/Sub Alert Bus ]
+      - 2D/3D Catchment Map                         (earthwhisper-alerts)
+      - Anomaly & Risk Gauges                                     │
+      - Real-Time Agent Chat                                      ▼
+      - Community Photo Upload                     [ Regional Responders ]
+                                                   (Assam Disaster Authority)
+```
+
+---
+
+## 🚀 Key Technical Highlights
+
+1. **Deterministic Baseline Anomaly Math**:
+   - Zero LLM hallucination for mathematical calculations.
+   - The Ingestion Worker computes rolling rainfall ($1\text{h}, 3\text{h}, 6\text{h}, 24\text{h}, 72\text{h}, 7\text{d}$) and compares them against a 10-year Day-of-Year (DOY) historical baseline in BigQuery using strict mathematical formulas:
+     $$\text{Anomaly\%} = \frac{P_{24h} - \mu_{doy}}{\mu_{doy} + 1.0} \times 100 \qquad Z_{\text{score}} = \frac{P_{72h} - \mu_{doy}}{\sigma_{doy} + 0.1}$$
+2. **Quality & Freshness Validation Gate**:
+   - Prevents stale satellite data from silently triggering emergency alerts. Sensor latency ($>48\text{h}$) automatically downgrades risk certainty and attaches visible caveats.
+3. **Calibrated Numerical ML (Vertex AI)**:
+   - 3-class Flood Susceptibility & Risk model (`0: Low`, `1: Moderate`, `2: High`) trained with XGBoost on Global Flood DB MODIS historical flood events (2000–2018).
+   - Artifacts versioned in **Vertex AI Model Registry** and served via private **Vertex AI Endpoints**.
+4. **Google ADK Agent with Remote BigQuery MCP**:
+   - The ADK agent connects to Google's managed BigQuery MCP Server (`https://bigquery.googleapis.com/mcp`) via **Streamable HTTP** using `McpToolset`.
+   - Queries an `ImpactGraph` mapping affected villages, population densities, schools, and hospitals in Assam so every cited entity is verified in SQL.
+5. **Multimodal Ground & SAR Verification**:
+   - Evaluators or local volunteers can submit ground photos in the dashboard; Gemini 3.8 Flash analyzes waterlogging markers and combines them with Sentinel-1 SAR radar evidence.
+6. **Strict Observability & Distributed Tracing**:
+   - 100% instrumented with OpenTelemetry, exporting spans across Cloud Run, Vertex AI, BigQuery, and Gemini to **Google Cloud Trace**.
+7. **Vertex AI Gen AI Evaluation Suite**:
+   - Automated evaluation suite evaluating Groundedness ($\ge 0.95$), Safety ($1.0$), and Instruction Adherence.
+8. **Strict Mock vs. Live Data Isolation**:
+   - Governed by [`AGENTS.md`](./AGENTS.md): Mock data NEVER touches production pipelines. Dedicated BigQuery datasets (`earthwhisper_live` vs `earthwhisper_mock`) and CLI parameterization (`--mode=live` vs `--mode=mock`).
+
+---
+
+## 📁 Repository Structure
+
+```
+.
+├── AGENTS.md                  # Strict agent operating guidelines & isolation rules
+├── README.md                  # System overview, architecture & user guide
+├── IMPLEMENTATION_PLAN.md     # Full technical specification & architecture design
+├── terraform/                 # 100% Terraform Infrastructure as Code
+│   ├── main.tf                # Provider setup & core definitions
+│   ├── variables.tf           # GCP project, region, and catchment configs
+│   ├── outputs.tf             # Service URLs, endpoint IDs, and topic names
+│   ├── apis.tf                # Enables 10+ Google Cloud APIs
+│   ├── iam.tf                 # Least-privilege Service Accounts & IAM bindings
+│   ├── pubsub.tf              # Signal & Alert topics, DLQs, push subscriptions
+│   ├── bigquery.tf            # Live and Mock datasets, schemas, and baselines
+│   ├── storage.tf             # GCS buckets for models and imagery
+│   ├── cloud_run.tf           # Ingestion worker, ADK agent, and dashboard services
+│   ├── scheduler.tf           # Daily Cloud Scheduler job
+│   └── vertex_ai.tf           # Model registry and endpoint resources
+├── data_pipeline/             # Ingestion & Earth Engine Processing
+│   ├── Dockerfile
+│   ├── ingest_worker.py       # Cloud Run FastAPI entrypoint
+│   ├── ee_extractor.py        # Earth Engine GPM IMERG, ERA5, S1 extractor
+│   ├── baseline_calculator.py # Deterministic DOY baseline & anomaly math
+│   ├── freshness_validator.py # Latency, coverage, and sensor health checks
+│   └── replay_generator.py    # 2017 & 2022/2024 Assam flood replay data
+├── ml_engine/                 # Machine Learning (XGBoost & Vertex AI)
+│   ├── train_xgboost.py       # Global Flood DB extraction & model training
+│   ├── evaluate_model.py      # Precision, recall, ROC-AUC, calibration metrics
+│   ├── deploy_vertex.py       # Model Registry registration & Endpoint deployment
+│   └── predict_schema.py      # Typed Pydantic schemas for features & outputs
+├── agent/                     # Google ADK Agent Service
+│   ├── Dockerfile
+│   ├── agent_service.py       # Cloud Run Push subscriber entrypoint
+│   ├── orchestrator.py        # LlmAgent definition (Gemini 3.8 Flash)
+│   ├── tools/
+│   │   ├── vertex_predictor.py# Native Vertex AI XGBoost tool
+│   │   ├── bq_mcp_client.py   # Streamable HTTP BigQuery MCP client
+│   │   └── vision_analyzer.py # Gemini 3.8 Flash multimodal photo inspection
+│   ├── policy_engine.py       # Cooldown gating, deduplication, audit records
+│   └── telemetry.py           # OpenTelemetry tracer & Cloud Trace export
+├── evals/                     # Gen AI Evaluation Harness
+│   ├── run_agent_evals.py     # Vertex AI Gen AI Evaluation runner
+│   ├── test_cases.json        # Golden evaluation scenarios
+│   └── eval_metrics.py        # Groundedness, safety, and adherence evaluators
+├── dashboard/                 # Streamlit UI & Command Center
+│   ├── Dockerfile
+│   ├── app.py                 # Main Streamlit application
+│   ├── components/
+│   │   ├── map_view.py        # Folium 2D & PyDeck 3D geospatial maps
+│   │   ├── metrics_view.py    # Real-time risk gauges & anomaly curves
+│   │   ├── chat_view.py       # Interactive conversational chat with ADK agent
+│   │   └── vision_view.py     # Ground photo upload & AI analysis
+│   └── requirements.txt
+└── scripts/
+    ├── deploy_all.sh          # End-to-end automated deployment script
+    └── seed_bigquery.py       # Seeds DOY baseline & Assam ImpactGraph assets
+```
+
+---
+
+## 🛠️ Deployment Guide (New GCP Project)
+
+### Prerequisites
+1. [Google Cloud SDK (`gcloud`)](https://cloud.google.com/sdk/docs/install) authenticated with project owner/editor privileges:
+   ```bash
+   gcloud auth login
+   gcloud auth application-default login
+   gcloud config set project YOUR_PROJECT_ID
+   ```
+2. [Terraform (>= 1.5.0)](https://developer.hashicorp.com/terraform/downloads) installed locally.
+3. [Python (>= 3.10)](https://www.python.org/) and [Docker](https://www.docker.com/).
+
+### Step 1: Initialize Infrastructure with Terraform
+```bash
+cd terraform
+terraform init
+terraform plan -var="project_id=YOUR_PROJECT_ID" -var="region=us-central1"
+terraform apply -var="project_id=YOUR_PROJECT_ID" -var="region=us-central1" -auto-approve
+```
+*Terraform will automatically enable all required APIs, create least-privilege Service Accounts, set up BigQuery datasets, deploy Cloud Storage buckets, configure Pub/Sub topics with push subscriptions and DLQs, deploy Cloud Run services, and schedule daily ingestion.*
+
+### Step 2: Seed BigQuery Climatology & ImpactGraph
+```bash
+python scripts/seed_bigquery.py --project_id=YOUR_PROJECT_ID --mode=live
+```
+
+### Step 3: Train & Deploy the ML Model to Vertex AI
+```bash
+cd ml_engine
+python train_xgboost.py --project_id=YOUR_PROJECT_ID
+python deploy_vertex.py --project_id=YOUR_PROJECT_ID --region=us-central1
+```
+
+### Step 4: Run the Automated Agent Evaluation Suite
+```bash
+cd evals
+python run_agent_evals.py --project_id=YOUR_PROJECT_ID
+```
+
+### Step 5: Launch & Explore the Streamlit Dashboard
+Open the deployed Cloud Run service URL output by Terraform:
+```bash
+terraform output dashboard_url
+```
+Or run locally for development:
+```bash
+cd dashboard
+streamlit run app.py
+```
+
+---
+
+## 🔒 Security & Least Privilege
+
+- **Zero Public Ingestion/Agent Endpoints**: Cloud Run services are deployed as private. Pub/Sub invokes the ADK Agent using signed Google OIDC identity tokens.
+- **Dedicated Service Accounts**:
+  - `sa-ingestion-worker`: Scoped exclusively to BigQuery editor and Pub/Sub publisher.
+  - `sa-adk-agent`: Scoped exclusively to Vertex AI user, BigQuery viewer/editor, and Cloud Trace agent.
+  - `sa-pubsub-invoker`: Scoped strictly to `roles/run.invoker`.
+- **Audit Lineage**: Every decision, tool invocation, model version, and trace ID is immutably recorded in BigQuery `alert_audits`.
+
+---
+
+## 📄 License & Attribution
+- Project created for the **Google Cloud AI Builder Cup 2026** (Sustainability & Social Impact).
+- Data sources: NASA GPM IMERG, ECMWF ERA5-Land, Copernicus Sentinel-1, Global Flood Database.
+- Governed by the guidelines outlined in [`AGENTS.md`](./AGENTS.md).

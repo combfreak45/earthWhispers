@@ -1,0 +1,1 @@
+# EarthWhispers Agent package

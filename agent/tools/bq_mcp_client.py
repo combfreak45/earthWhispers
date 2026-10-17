@@ -17,8 +17,24 @@ from typing import Dict, Any, List
 from google.cloud import bigquery
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "data_pipeline")))
-from mcp_bq_client import BigQueryMCPClient
-from telemetry import get_tracer
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+try:
+    from mcp_bq_client import BigQueryMCPClient
+except ImportError:
+    try:
+        from tools.mcp_bq_client import BigQueryMCPClient
+    except ImportError:
+        try:
+            from data_pipeline.mcp_bq_client import BigQueryMCPClient
+        except ImportError:
+            BigQueryMCPClient = None
+
+try:
+    from telemetry import get_tracer
+except ImportError:
+    from opentelemetry import trace
+    def get_tracer():
+        return trace.get_tracer("earthwhisper-bq-mcp")
 
 logger = logging.getLogger("earthwhisper-bq-mcp")
 tracer = get_tracer()
@@ -87,20 +103,24 @@ def lookup_impact_graph(
             logger.info(f"Retrieved {len(records)} impact assets from {target_dataset} via BigQuery MCP.")
         except Exception as e:
             logger.warning(f"BigQuery MCP impact lookup query error: {e}")
-            if mode == "live":
-                # In live mode: Strict isolation, do not mask failures with synthetic fixtures
-                records = []
-            else:
-                # In mock mode only: fallback fixture for dry-runs
-                records = [
-                    {"asset_id": "MOCK-SET-001", "district": "Dhubri", "name": "Dhubri Town & River Port", "asset_type": "SETTLEMENT", "population": 63700, "vulnerability_index": 0.88},
-                    {"asset_id": "MOCK-SET-002", "district": "Barpeta", "name": "Barpeta Gram Panchayat", "asset_type": "SETTLEMENT", "population": 42600, "vulnerability_index": 0.82},
-                    {"asset_id": "MOCK-HOS-001", "district": "Dhubri", "name": "Dhubri Civil Hospital", "asset_type": "HOSPITAL", "population": None, "vulnerability_index": 0.90},
-                    {"asset_id": "MOCK-EVAC-001", "district": "Barpeta", "name": "Barpeta Flood Shelter Center", "asset_type": "EVACUATION_CENTER", "population": None, "vulnerability_index": 0.75},
-                    {"asset_id": "MOCK-BRI-001", "district": "Goalpara", "name": "Naranarayan Setu Bridge Access", "asset_type": "BRIDGE", "population": None, "vulnerability_index": 0.85}
-                ]
+            records = []
 
-        total_pop = sum(r["population"] for r in records if r.get("population"))
+        if not records and mode == "mock":
+            records = [
+                {"asset_id": "MOCK-SET-001", "district": "Dhubri", "name": "Dhubri Town & River Port", "asset_type": "SETTLEMENT", "population": 63700, "vulnerability_index": 0.88},
+                {"asset_id": "MOCK-SET-002", "district": "Barpeta", "name": "Barpeta Gram Panchayat", "asset_type": "SETTLEMENT", "population": 42600, "vulnerability_index": 0.82},
+                {"asset_id": "MOCK-HOS-001", "district": "Dhubri", "name": "Dhubri Civil Hospital", "asset_type": "HOSPITAL", "population": None, "vulnerability_index": 0.90},
+                {"asset_id": "MOCK-EVAC-001", "district": "Barpeta", "name": "Barpeta Flood Shelter Center", "asset_type": "EVACUATION_CENTER", "population": None, "vulnerability_index": 0.75},
+                {"asset_id": "MOCK-BRI-001", "district": "Goalpara", "name": "Naranarayan Setu Bridge Access", "asset_type": "BRIDGE", "population": None, "vulnerability_index": 0.85}
+            ]
+
+        def _safe_int(v):
+            try:
+                return int(v) if v is not None else 0
+            except (ValueError, TypeError):
+                return 0
+
+        total_pop = sum(_safe_int(r.get("population")) for r in records)
         settlements = [r["name"] for r in records if r.get("asset_type") == "SETTLEMENT"]
         hospitals = [r["name"] for r in records if r.get("asset_type") == "HOSPITAL"]
         evac_centers = [r["name"] for r in records if r.get("asset_type") == "EVACUATION_CENTER"]
@@ -120,20 +140,47 @@ def lookup_impact_graph(
         return payload
 
 
+from replay_generator import get_mock_scenario
+
+
 def fetch_latest_features(
     catchment_id: str = "brahmaputra_lower_assam",
     mode: str = "live",
+    scenario_id: str = "2024_ASSAM_BRAHMAPUTRA_SURGE",
 ) -> Dict[str, Any]:
     """
     Fetch the latest operational telemetry row for a catchment from
     `catchment_features`, returning the 14-feature dict the Vertex model needs
     plus freshness metadata. Returns {"error": ...} if no row is found (live).
+    In mock mode, falls back to the verified historical replay scenario.
     """
     with tracer.start_as_current_span("earthwhisper.mcp.fetch_latest_features") as span:
         span.set_attribute("execution_mode", mode)
         span.set_attribute("catchment_id", catchment_id)
+        span.set_attribute("scenario_id", scenario_id)
 
-        dataset = DATASET_LIVE if mode == "live" else DATASET_MOCK
+        # In mock mode, immediately return the selected historical replay fixture
+        if mode == "mock":
+            try:
+                scenario_data = get_mock_scenario(scenario_id)
+                features = {k: scenario_data.get(k) for k in FEATURE_COLUMNS}
+                obs_ts = scenario_data.get("observation_timestamp")
+                obs_iso = obs_ts.isoformat() if hasattr(obs_ts, "isoformat") else str(obs_ts)
+                span.set_attribute("features.observation_timestamp", obs_iso)
+                span.set_attribute("features.freshness_status", scenario_data.get("freshness_status"))
+                return {
+                    "catchment_id": scenario_data.get("catchment_id", catchment_id),
+                    "observation_timestamp": obs_iso,
+                    "ingestion_timestamp": obs_iso,
+                    "features": features,
+                    "freshness_status": scenario_data.get("freshness_status", "FRESH_NOMINAL"),
+                    "feature_version": scenario_data.get("feature_version", "v1.0-replay"),
+                }
+            except Exception as e:
+                return {"error": f"Failed loading mock scenario {scenario_id}: {e}", "features": {}}
+
+        # In live mode, query BigQuery live dataset
+        dataset = DATASET_LIVE
         table_ref = f"`{PROJECT_ID}.{dataset}.catchment_features`"
         cols = ", ".join(FEATURE_COLUMNS)
         query = f"""
@@ -146,16 +193,19 @@ def fetch_latest_features(
         """
         params = [bigquery.ScalarQueryParameter("catchment_id", "STRING", catchment_id)]
 
+        rows = []
         try:
             rows = get_mcp_client().execute_query(query, params)
         except Exception as e:
             logger.warning(f"catchment_features query error: {e}")
-            if mode == "live":
-                return {"error": f"Feature telemetry query failed: {e}", "features": {}}
-            rows = []
+            return {"error": f"Live BigQuery telemetry query failed: {e}", "features": {}}
 
         if not rows:
-            return {"error": f"No telemetry found for catchment_id={catchment_id}", "features": {}}
+            return {
+                "error": f"No telemetry found in live BigQuery table for catchment_id={catchment_id}. "
+                         f"Please run data_pipeline/ingest_worker.py or switch to '🧪 Historical Replay / Benchmark' mode.",
+                "features": {}
+            }
 
         row = _jsonable(rows[0])
         features = {k: row.get(k) for k in FEATURE_COLUMNS}
@@ -200,16 +250,26 @@ def get_climate_baseline(
             bigquery.ScalarQueryParameter("doy", "INT64", doy),
         ]
 
+        rows = []
         try:
             rows = get_mcp_client().execute_query(query, params)
         except Exception as e:
             logger.warning(f"catchment_climate_baseline query error: {e}")
             if mode == "live":
                 return {"error": f"Baseline query failed: {e}"}
-            rows = []
 
         if not rows:
-            return {"error": f"No baseline found for catchment_id={catchment_id}, doy={doy}"}
+            if mode == "live":
+                return {"error": f"No baseline found for catchment_id={catchment_id}, doy={doy}"}
+            # Mock mode fallback
+            return {
+                "doy": doy,
+                "mean_rain_24h_mm": 58.2,
+                "std_rain_24h_mm": 48.5,
+                "mean_rain_72h_mm": 135.0,
+                "std_rain_72h_mm": 95.0,
+                "baseline_window_years": 20
+            }
         return _jsonable(rows[0])
 
 
@@ -226,6 +286,13 @@ def write_alert_audit(record: Dict[str, Any], mode: str = "live") -> Dict[str, A
 
         dataset = DATASET_LIVE if mode == "live" else DATASET_MOCK
         table_id = f"{PROJECT_ID}.{dataset}.alert_audits"
-        get_mcp_client().insert_rows(table_id, [record])
-        logger.info(f"Audit {record.get('audit_id')} written to {table_id}.")
-        return {"status": "written", "audit_id": record.get("audit_id"), "table": table_id}
+        try:
+            get_mcp_client().insert_rows(table_id, [record])
+            logger.info(f"Audit {record.get('audit_id')} written to {table_id}.")
+            return {"status": "written", "audit_id": record.get("audit_id"), "table": table_id}
+        except Exception as e:
+            logger.warning(f"BigQuery audit write failed: {e}")
+            if mode == "live":
+                raise
+            return {"status": "mock_recorded", "audit_id": record.get("audit_id"), "table": table_id}
+

@@ -1,0 +1,49 @@
+{
+  "model_name": "earthwhisper-xgboost",
+  "version": "v1.0",
+  "target": "flood_risk_level",
+  "classes": [
+    "Low",
+    "Moderate",
+    "Severe"
+  ],
+  "num_classes": 3,
+  "feature_names": [
+    "rain_1h_mm",
+    "rain_3h_mm",
+    "rain_6h_mm",
+    "rain_24h_mm",
+    "rain_72h_mm",
+    "rain_7d_mm",
+    "rain_peak_1h_mm",
+    "rain_24h_anomaly_pct",
+    "rain_72h_zscore",
+    "soil_water_layer1",
+    "elevation_mean_m",
+    "slope_mean_deg",
+    "data_freshness_hrs",
+    "spatial_coverage_pct"
+  ],
+  "source_dataset": "earth-whisper-ai-builders-cup.earthwhisper_live.training_dataset",
+  "accuracy": 0.4821,
+  "weighted_f1": 0.4537,
+  "roc_auc_ovr": 0.5816,
+  "training_samples": 706,
+  "test_samples": 56,
+  "feature_importance": {
+    "rain_1h_mm": 0.08313214778900146,
+    "rain_3h_mm": 0.07932186871767044,
+    "rain_6h_mm": 0.08998808264732361,
+    "rain_24h_mm": 0.10828152298927307,
+    "rain_72h_mm": 0.09648837149143219,
+    "rain_7d_mm": 0.09387083351612091,
+    "rain_peak_1h_mm": 0.1183389350771904,
+    "rain_24h_anomaly_pct": 0.09697280079126358,
+    "rain_72h_zscore": 0.10009966790676117,
+    "soil_water_layer1": 0.13350576162338257,
+    "elevation_mean_m": 0.0,
+    "slope_mean_deg": 0.0,
+    "data_freshness_hrs": 0.0,
+    "spatial_coverage_pct": 0.0
+  }
+}

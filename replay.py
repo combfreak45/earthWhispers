@@ -8,7 +8,7 @@ Runs the full LIVE pipeline via the deterministic orchestrator:
 Usage:
     python replay.py                               # live, default catchment
     python replay.py --catchment brahmaputra_lower_assam
-    python replay.py --mode mock --verbose
+    python replay.py --mode mock --scenario 2024_ASSAM_BRAHMAPUTRA_SURGE --verbose
 """
 import argparse
 import json
@@ -33,13 +33,13 @@ DECISION_COLOR = {"send_alert": GREEN, "suppress": GRAY, "human_review": ORANGE}
 
 
 def banner(text: str):
-    print(f"\n{BOLD}{CYAN}{'─' * 60}{RESET}")
+    print(f"\n{BOLD}{CYAN}{'=' * 60}{RESET}")
     print(f"{BOLD}{CYAN}  {text}{RESET}")
-    print(f"{BOLD}{CYAN}{'─' * 60}{RESET}")
+    print(f"{BOLD}{CYAN}{'=' * 60}{RESET}")
 
 
 def section(text: str):
-    print(f"\n{BOLD}▸ {text}{RESET}")
+    print(f"\n{BOLD}> {text}{RESET}")
 
 
 def info(key: str, value):
@@ -47,21 +47,35 @@ def info(key: str, value):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="EarthWhispers live demo replay")
+    parser = argparse.ArgumentParser(description="EarthWhispers demo replay")
     parser.add_argument("--catchment", default="brahmaputra_lower_assam", help="Catchment ID to assess")
     parser.add_argument("--mode", default="live", choices=["live", "mock"], help="Execution mode")
+    parser.add_argument(
+        "--scenario",
+        default="2024_ASSAM_BRAHMAPUTRA_SURGE",
+        choices=[
+            "2024_ASSAM_BRAHMAPUTRA_SURGE",
+            "2022_ASSAM_CATASTROPHIC",
+            "2017_ASSAM_BENCHMARK",
+            "DRY_SEASON_NOMINAL",
+            "STALE_DATA_DEGRADED",
+        ],
+        help="Replay scenario (for --mode mock)",
+    )
     parser.add_argument("--verbose", action="store_true", help="Print full JSON result")
     args = parser.parse_args()
 
-    banner("EarthWhispers — Live Pipeline Replay")
+    banner(f"EarthWhispers — {args.mode.upper()} Pipeline Replay")
     print(f"  Catchment : {args.catchment}")
     print(f"  Mode      : {args.mode}")
+    if args.mode == "mock":
+        print(f"  Scenario  : {args.scenario}")
 
     t = time.time()
-    result = run_assessment(catchment_id=args.catchment, mode=args.mode)
+    result = run_assessment(catchment_id=args.catchment, mode=args.mode, scenario_id=args.scenario)
 
     if result.get("status") != "ok":
-        print(f"\n  {RED}✗ Assessment did not complete: {result.get('error', result.get('status'))}{RESET}")
+        print(f"\n  {RED}x Assessment did not complete: {result.get('error', result.get('status'))}{RESET}")
         sys.exit(1)
 
     pred = result["prediction"]

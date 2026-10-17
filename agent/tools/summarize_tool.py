@@ -16,6 +16,13 @@ Rules you MUST follow:
 """
 
 
+def _safe_pop(p):
+    try:
+        return f"{int(p):,}"
+    except (ValueError, TypeError):
+        return str(p) if p else "N/A"
+
+
 def summarize_with_gemini(
     area_name: str,
     risk_label: str,
@@ -35,7 +42,7 @@ def summarize_with_gemini(
     records = impact.get("detailed_records", [])
     settlements = [r for r in records if r.get("asset_type") == "SETTLEMENT" and r.get("population")]
     settlement_text = "\n".join(
-        f"  - {r['name']}: population {r['population']:,}" for r in settlements
+        f"  - {r['name']}: population {_safe_pop(r['population'])}" for r in settlements
     ) or "  - No settlement data available"
 
     assets = (
@@ -68,7 +75,7 @@ SEASONAL BASELINE (day-of-year normals):
 - Mean 24h rainfall: {base.get('mean_rain_24h_mm', 'N/A')} mm (± {base.get('std_rain_24h_mm', 'N/A')})
 - Mean 72h rainfall: {base.get('mean_rain_72h_mm', 'N/A')} mm (± {base.get('std_rain_72h_mm', 'N/A')})
 
-EXPOSED POPULATION: {impact.get('total_exposed_population', 0):,}
+EXPOSED POPULATION: {_safe_pop(impact.get('total_exposed_population', 0))}
 
 NEARBY COMMUNITIES:
 {settlement_text}
@@ -131,7 +138,7 @@ def _mock_summary(area_name, risk_label, risk_score, features, impact, model_ver
         f"24h rainfall: {features.get('rain_24h_mm', 'N/A')} mm "
         f"({features.get('rain_24h_anomaly_pct', 'N/A')}% vs normal, "
         f"72h z-score {features.get('rain_72h_zscore', 'N/A')})\n"
-        f"Exposed population: {impact.get('total_exposed_population', 0):,}\n"
+        f"Exposed population: {_safe_pop(impact.get('total_exposed_population', 0))}\n"
         f"Nearby communities: {', '.join(r['name'] for r in settlements) or 'None'}"
     )
     return {"summary": summary, "recommended_actions": _recommend_actions(risk_label)}

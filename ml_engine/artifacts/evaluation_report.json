@@ -1,0 +1,42 @@
+{
+  "roc_auc_ovr": 0.5816,
+  "confusion_matrix": [
+    [
+      4,
+      1,
+      11
+    ],
+    [
+      0,
+      4,
+      11
+    ],
+    [
+      0,
+      6,
+      19
+    ]
+  ],
+  "metrics_per_class": {
+    "low_0": {
+      "precision": 1.0,
+      "recall": 0.25,
+      "f1-score": 0.4,
+      "support": 16.0
+    },
+    "moderate_1": {
+      "precision": 0.36363636363636365,
+      "recall": 0.26666666666666666,
+      "f1-score": 0.3076923076923077,
+      "support": 15.0
+    },
+    "severe_2": {
+      "precision": 0.4634146341463415,
+      "recall": 0.76,
+      "f1-score": 0.5757575757575758,
+      "support": 25.0
+    }
+  },
+  "accuracy": 0.4821,
+  "test_samples": 56
+}

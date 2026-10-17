@@ -1,0 +1,86 @@
+[
+  {
+    "scenario_id": "test-01-catastrophic-flood",
+    "description": "June 2022 extreme monsoon flood in Assam (>500mm 72h rain, high Z-score).",
+    "payload": {
+      "mode": "mock",
+      "catchment_id": "brahmaputra_lower_assam",
+      "freshness_status": "FRESH_NOMINAL",
+      "features": {
+        "rain_1h_mm": 42.5,
+        "rain_3h_mm": 98.0,
+        "rain_6h_mm": 172.5,
+        "rain_24h_mm": 285.0,
+        "rain_72h_mm": 515.0,
+        "rain_7d_mm": 740.0,
+        "rain_peak_1h_mm": 55.0,
+        "rain_24h_anomaly_pct": 380.0,
+        "rain_72h_zscore": 3.85,
+        "soil_water_layer1": 0.495,
+        "elevation_mean_m": 125.0,
+        "slope_mean_deg": 1.8,
+        "data_freshness_hrs": 4.5,
+        "spatial_coverage_pct": 96.0
+      }
+    },
+    "expected_risk_class": 2,
+    "expected_policy_action": "DISPATCHED_ALERT",
+    "mandatory_citations": ["Dhubri", "Barpeta", "285.0 mm", "3.85"]
+  },
+  {
+    "scenario_id": "test-02-dry-baseline",
+    "description": "Assam winter dry season baseline (clear skies, negligible precipitation).",
+    "payload": {
+      "mode": "mock",
+      "catchment_id": "brahmaputra_lower_assam",
+      "freshness_status": "FRESH_NOMINAL",
+      "features": {
+        "rain_1h_mm": 0.0,
+        "rain_3h_mm": 0.0,
+        "rain_6h_mm": 0.0,
+        "rain_24h_mm": 0.5,
+        "rain_72h_mm": 1.2,
+        "rain_7d_mm": 2.0,
+        "rain_peak_1h_mm": 0.2,
+        "rain_24h_anomaly_pct": -60.0,
+        "rain_72h_zscore": -0.85,
+        "soil_water_layer1": 0.210,
+        "elevation_mean_m": 125.0,
+        "slope_mean_deg": 1.8,
+        "data_freshness_hrs": 6.0,
+        "spatial_coverage_pct": 99.5
+      }
+    },
+    "expected_risk_class": 0,
+    "expected_policy_action": "LOGGED_NOMINAL",
+    "mandatory_citations": ["Low", "nominal"]
+  },
+  {
+    "scenario_id": "test-03-stale-sensor",
+    "description": "Satellite sensor latency is 54 hours (stale data gate test).",
+    "payload": {
+      "mode": "mock",
+      "catchment_id": "brahmaputra_lower_assam",
+      "freshness_status": "STALE_CRITICAL",
+      "features": {
+        "rain_1h_mm": 20.0,
+        "rain_3h_mm": 40.0,
+        "rain_6h_mm": 60.0,
+        "rain_24h_mm": 120.0,
+        "rain_72h_mm": 240.0,
+        "rain_7d_mm": 350.0,
+        "rain_peak_1h_mm": 25.0,
+        "rain_24h_anomaly_pct": 140.0,
+        "rain_72h_zscore": 2.10,
+        "soil_water_layer1": 0.420,
+        "elevation_mean_m": 125.0,
+        "slope_mean_deg": 1.8,
+        "data_freshness_hrs": 54.0,
+        "spatial_coverage_pct": 65.0
+      }
+    },
+    "expected_risk_class": 1,
+    "expected_policy_action": "SUPPRESSED_STALE_DATA",
+    "mandatory_citations": ["54.0 hours", "STALE_CRITICAL"]
+  }
+]
