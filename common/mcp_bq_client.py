@@ -139,62 +139,27 @@ class BigQueryMCPClient:
         return []
 
     def insert_record(self, table_fqn: str, record: Dict[str, Any]):
-        """
-        Executes a SQL INSERT statement through the BigQuery MCP Server.
-        """
-        columns = list(record.keys())
-        values = []
-        for col in columns:
-            val = record[col]
-            if val is None:
-                values.append("NULL")
-            elif isinstance(val, (int, float)):
-                values.append(str(val))
-            elif isinstance(val, bool):
-                values.append("TRUE" if val else "FALSE")
-            else:
-                # String or timestamp
-                escaped = str(val).replace("'", "\\'")
-                values.append(f"'{escaped}'")
+        """Append a single row via the native BigQuery streaming insert."""
+        self.insert_records_batch(table_fqn, [record])
 
-        cols_str = ", ".join(columns)
-        vals_str = ", ".join(values)
-        sql = f"INSERT INTO `{table_fqn}` ({cols_str}) VALUES ({vals_str})"
-        self.call_mcp_tool("execute_query", {"query": sql})
-
-    def insert_records_batch(self, table_fqn: str, records: List[Dict[str, Any]], batch_size: int = 50):
+    def insert_records_batch(self, table_fqn: str, records: List[Dict[str, Any]], batch_size: int = 500):
         """
-        Batches multiple record inserts into parameterized multi-row SQL INSERT statements
-        executed through the BigQuery MCP Server.
+        Append rows via the native google-cloud-bigquery streaming insert (insert_rows_json).
+
+        Avoids string-built INSERT SQL entirely, so free-text fields (e.g. gemini_briefing
+        with quotes/newlines/markdown) are handled safely, TIMESTAMP columns accept ISO
+        strings, and failures surface as errors instead of silently succeeding via MCP HTTP.
         """
         if not records:
             return
-
-        columns = list(records[0].keys())
-        cols_str = ", ".join(columns)
-
+        from google.cloud import bigquery
+        client = bigquery.Client(project=self.project_id)
         for i in range(0, len(records), batch_size):
             chunk = records[i:i + batch_size]
-            row_value_strings = []
-            for rec in chunk:
-                values = []
-                for col in columns:
-                    val = rec.get(col)
-                    if val is None:
-                        values.append("NULL")
-                    elif isinstance(val, (int, float)):
-                        values.append(str(val))
-                    elif isinstance(val, bool):
-                        values.append("TRUE" if val else "FALSE")
-                    else:
-                        escaped = str(val).replace("'", "\\'")
-                        values.append(f"'{escaped}'")
-                row_value_strings.append(f"({', '.join(values)})")
-
-            vals_block = ",\n".join(row_value_strings)
-            sql = f"INSERT INTO `{table_fqn}` ({cols_str}) VALUES\n{vals_block}"
-            self.call_mcp_tool("execute_query", {"query": sql})
-            logger.info(f"Inserted batch of {len(chunk)} rows into {table_fqn} via BigQuery MCP.")
+            errors = client.insert_rows_json(table_fqn, chunk)
+            if errors:
+                raise RuntimeError(f"BigQuery insert into {table_fqn} failed: {errors}")
+            logger.info(f"Inserted {len(chunk)} row(s) into {table_fqn} (native streaming insert).")
 
     def insert_rows(self, table_fqn: str, records: List[Dict[str, Any]]):
         """Alias for insert_records_batch to maintain compatibility with standard BigQuery client conventions."""
