@@ -1,7 +1,7 @@
 """
 EarthWhisper ADK Agent Orchestrator
 Coordinates Vertex AI XGBoost predictions, BigQuery MCP ImpactGraph lookups,
-and Gemini 3.8 Flash evidence synthesis.
+and Gemini 2.5 Flash evidence synthesis.
 """
 
 import os
@@ -18,7 +18,7 @@ from telemetry import get_tracer
 logger = logging.getLogger("earthwhisper-orchestrator")
 tracer = get_tracer()
 
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.8-flash")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 
 
 SYSTEM_INSTRUCTION = """You are EarthWhisper, an analytical flood-risk intelligence orchestrator built for the Google Cloud AI Builder Cup.
@@ -40,7 +40,7 @@ def synthesize_briefing_with_gemini(
     freshness_status: str
 ) -> str:
     """
-    Calls Gemini 3.8 Flash to compose the structured risk briefing.
+    Calls Gemini 2.5 Flash to compose the structured risk briefing.
     """
     with tracer.start_as_current_span("earthwhisper.gemini.synthesis") as span:
         span.set_attribute("model", GEMINI_MODEL)
@@ -133,7 +133,7 @@ def run_orchestration(signal_payload: Dict[str, Any]) -> Dict[str, Any]:
         # 2. Tool Call: BigQuery ImpactGraph Lookup
         impact = lookup_impact_graph(catchment_id, risk_class=prediction["risk_class"], mode=mode)
 
-        # 3. Tool Call / Synthesis: Gemini 3.8 Flash Grounded Briefing
+        # 3. Tool Call / Synthesis: Gemini 2.5 Flash Grounded Briefing
         briefing = synthesize_briefing_with_gemini(features, prediction, impact, freshness_status)
 
         # 4. Policy Gate: Deduplication, Cooldown, and Escalation Checks

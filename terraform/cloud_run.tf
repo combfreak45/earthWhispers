@@ -107,11 +107,24 @@ resource "google_cloud_run_v2_service" "adk_agent" {
       }
       env {
         name  = "GEMINI_MODEL"
-        value = "gemini-3.8-flash"
+        value = "gemini-2.5-flash"
       }
       env {
         name  = "OTEL_SERVICE_NAME"
         value = "earthwhisper-adk-agent"
+      }
+      # Gemini-via-Vertex for the grounded briefing (set manually 2026-10-17; codified here).
+      env {
+        name  = "GOOGLE_GENAI_USE_VERTEXAI"
+        value = "true"
+      }
+      env {
+        name  = "GOOGLE_CLOUD_PROJECT"
+        value = var.project_id
+      }
+      env {
+        name  = "GOOGLE_CLOUD_LOCATION"
+        value = var.region
       }
     }
 

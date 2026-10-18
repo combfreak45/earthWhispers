@@ -3,7 +3,7 @@ EarthWhispers — Interactive Flood Risk Intelligence Command Center
 Google Cloud AI Builder Cup · Sustainability & Social Impact Track
 
 Features:
-- Gemini 3.8 Flash (Global Region) Conversational Agent with live telemetry & ImpactGraph context
+- Gemini 2.5 Flash (Global Region) Conversational Agent with live telemetry & ImpactGraph context
 - Vertex AI XGBoost Calibrated Flood Risk Predictions
 - 2D Leaflet (Folium) Interactive Basin Map with Real Satellite Imagery Toggle (Zero API Keys Required)
 - 3D PyDeck Basin & Rainfall Elevation Mesh with OpenStreetMap Raster TileLayer (Zero API Keys Required)
@@ -66,7 +66,7 @@ st.set_page_config(
 # ── Environment & GCP Configuration ───────────────────────────────────────────
 PROJECT_ID = os.getenv("PROJECT_ID") or os.getenv("GOOGLE_CLOUD_PROJECT", "your-google-cloud-project-id")
 ADK_SERVICE_URL = os.getenv("ADK_SERVICE_URL", "http://localhost:8080")
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.8-flash")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 
 # ── Environmental Green Nature Theme Styling ──────────────────────────────────
 st.markdown("""
@@ -339,10 +339,10 @@ VERIFIED_ASSETS = [
 ]
 
 
-# ── Gemini 3.8 Flash (Global Region) Conversational Agent ──────────────────────
+# ── Gemini 2.5 Flash (Global Region) Conversational Agent ──────────────────────
 def call_gemini_conversational_agent(user_prompt: str, active_data: dict, mode: str = "mock") -> str:
     """
-    Invokes Gemini 3.8 Flash (global region) with deep grounding context:
+    Invokes Gemini 2.5 Flash (global region) with deep grounding context:
     - Real-time / historical telemetry (rainfall, anomaly, Z-score, soil saturation)
     - Vertex AI XGBoost predictions (risk class, risk score, probabilities, feature importances)
     - BigQuery ImpactGraph assets (names, types, populations, vulnerability scores)
@@ -395,7 +395,7 @@ def call_gemini_conversational_agent(user_prompt: str, active_data: dict, mode: 
 
 Answer the user question thoroughly, citing exact physical drivers, Vertex AI probabilities, and ImpactGraph assets from the context above."""
 
-    # 1. Attempt live invocation via google-genai SDK (targeting Gemini 3.8 Flash global)
+    # 1. Attempt live invocation via google-genai SDK (targeting Gemini 2.5 Flash global)
     try:
         from google import genai
         from google.genai import types
@@ -408,8 +408,8 @@ Answer the user question thoroughly, citing exact physical drivers, Vertex AI pr
         else:
             client = genai.Client()
 
-        # Primary model target: gemini-3.8-flash (with graceful fallback to gemini-2.5-flash)
-        for model_id in [GEMINI_MODEL, "gemini-3.8-flash", "gemini-2.5-flash", "gemini-1.5-flash"]:
+        # Primary model target: gemini-2.5-flash (with graceful fallback to gemini-2.5-flash)
+        for model_id in [GEMINI_MODEL, "gemini-2.5-flash", "gemini-2.5-flash", "gemini-1.5-flash"]:
             try:
                 response = client.models.generate_content(
                     model=model_id,
@@ -593,7 +593,7 @@ if st.sidebar.button("⚡ Run Agent Pipeline Now", width="stretch", type="primar
 
 st.sidebar.markdown("---")
 st.sidebar.caption("• **Model:** Vertex AI XGBoost (`v1.0`)")
-st.sidebar.caption(f"• **Conversational LLM:** Gemini 3.8 Flash (global)")
+st.sidebar.caption(f"• **Conversational LLM:** Gemini 2.5 Flash (global)")
 st.sidebar.caption("• **Telemetry:** NASA GPM IMERG V07 & Sentinel-1")
 st.sidebar.caption("• **BigQuery MCP:** Streamable HTTP Toolset")
 
@@ -615,7 +615,7 @@ st.markdown("""
                     🛰️ NASA GPM IMERG · Sentinel-1 SAR · Vertex AI
                 </span>
                 <span style="background-color: #0d3b34; color: #34d399; padding: 4px 12px; border-radius: 20px; font-size: 0.82rem; font-weight: 600; border: 1px solid #10b981;">
-                    🤖 Gemini 3.8 Flash (Global)
+                    🤖 Gemini 2.5 Flash (Global)
                 </span>
             </div>
         </div>
@@ -720,7 +720,7 @@ tabs = st.tabs([
     "📈 Baseline & Anomaly Charts",
     "🏢 ImpactGraph & Exposed Assets",
     "📝 Grounded AI Briefing",
-    "💬 Conversational Agent (Gemini 3.8 Flash)",
+    "💬 Conversational Agent (Gemini 2.5 Flash)",
     "📸 Community Photo Inspection",
     "📋 BigQuery Audit Trail"
 ])
@@ -926,7 +926,7 @@ with tabs[2]:
 # TAB 4: GROUNDED AI BRIEFING
 # ══════════════════════════════════════════════════════════════════════════════
 with tabs[3]:
-    st.subheader("Gemini 3.8 Flash Evidence-Grounded Briefing")
+    st.subheader("Gemini 2.5 Flash Evidence-Grounded Briefing")
     st.caption("Synthesized strictly from Vertex AI XGBoost predictions and BigQuery ImpactGraph tool outputs.")
     st.markdown(active_data["briefing"])
 
@@ -936,7 +936,7 @@ with tabs[3]:
 # ══════════════════════════════════════════════════════════════════════════════
 with tabs[4]:
     st.subheader("💬 Chat with EarthWhisper Flood Intelligence Agent")
-    st.caption("Powered by **Gemini 3.8 Flash (global region)**. Injects live catchment telemetry, Vertex AI ML probabilities, and BigQuery ImpactGraph assets into reasoning context.")
+    st.caption("Powered by **Gemini 2.5 Flash (global region)**. Injects live catchment telemetry, Vertex AI ML probabilities, and BigQuery ImpactGraph assets into reasoning context.")
 
     st.markdown("**Sample Questions for Judges & Responders:**")
     cp1, cp2, cp3 = st.columns(3)
@@ -946,7 +946,7 @@ with tabs[4]:
 
     if "chat_history" not in st.session_state:
         st.session_state.chat_history = [
-            {"role": "assistant", "content": f"Hello! I am **EarthWhisper**, your analytical flood-risk intelligence orchestrator powered by **Gemini 3.8 Flash (global)**. Ask me about current rainfall anomalies, Vertex AI risk probabilities, or BigQuery ImpactGraph infrastructure in Assam."}
+            {"role": "assistant", "content": f"Hello! I am **EarthWhisper**, your analytical flood-risk intelligence orchestrator powered by **Gemini 2.5 Flash (global)**. Ask me about current rainfall anomalies, Vertex AI risk probabilities, or BigQuery ImpactGraph infrastructure in Assam."}
         ]
 
     for msg in st.session_state.chat_history:
@@ -969,7 +969,7 @@ with tabs[4]:
             st.markdown(prompt_to_run)
 
         with st.chat_message("assistant"):
-            with st.spinner("🤖 Gemini 3.8 Flash (global) reasoning with active catchment context..."):
+            with st.spinner("🤖 Gemini 2.5 Flash (global) reasoning with active catchment context..."):
                 response_text = call_gemini_conversational_agent(prompt_to_run, active_data, mode=current_mode)
                 st.markdown(response_text)
                 st.session_state.chat_history.append({"role": "assistant", "content": response_text})
@@ -1014,7 +1014,7 @@ with tabs[5]:
                             vision_data = None
 
         if vision_data and "error" not in vision_data:
-            st.success("✅ **Live Gemini Multimodal Analysis Complete** (Model: `gemini-3.8-flash`)")
+            st.success("✅ **Live Gemini Multimodal Analysis Complete** (Model: `gemini-2.5-flash`)")
             mc1, mc2 = st.columns(2)
             w_detected = "YES" if vision_data.get("water_detected") else "NO"
             conf = int(vision_data.get("confidence_level", 0.9) * 100)
@@ -1031,7 +1031,7 @@ with tabs[5]:
             if vision_data.get("observation_summary"):
                 st.info(f"**Gemini Ground Summary:** {vision_data.get('observation_summary')}")
         else:
-            st.success("✅ **Multimodal Analysis Complete** (Model: `gemini-3.8-flash`)")
+            st.success("✅ **Multimodal Analysis Complete** (Model: `gemini-2.5-flash`)")
             mc1, mc2 = st.columns(2)
             mc1.metric("🌊 Water Detected", "YES", "Confidence: 91%")
             mc2.metric("📏 Depth Estimate", "knee-deep (1-2 ft)")

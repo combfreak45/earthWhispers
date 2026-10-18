@@ -1,5 +1,5 @@
 """
-Gemini 3.8 Flash Multimodal Vision Tool
+Gemini 2.5 Flash Multimodal Vision Tool
 Analyzes community-submitted flood photos or Sentinel-1 SAR imagery
 to detect visible environmental markers: standing water, submerged roads, breached embankments.
 """
@@ -13,12 +13,12 @@ from telemetry import get_tracer
 logger = logging.getLogger("earthwhisper-vision")
 tracer = get_tracer()
 
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.8-flash")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 
 
 def analyze_ground_imagery(image_bytes: bytes, user_notes: Optional[str] = None) -> Dict[str, Any]:
     """
-    Analyzes uploaded ground photo or satellite SAR crop using Gemini 3.8 Flash multimodal vision.
+    Analyzes uploaded ground photo or satellite SAR crop using Gemini 2.5 Flash multimodal vision.
     Focuses on visible waterlogging, breached embankments, and road submersion.
     """
     with tracer.start_as_current_span("earthwhisper.tool.analyze_ground_imagery") as span:

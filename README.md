@@ -39,7 +39,7 @@ Built specifically for the **Lower Brahmaputra River Basin (Assam, India)**, Ear
                                           │
         ┌─────────────────────────────────┼────────────────────────────────┐
         ▼                                 ▼                                ▼
-[ Vertex AI Endpoint ]         [ BigQuery MCP Server ]           [ Gemini 3.8 Flash ]
+[ Vertex AI Endpoint ]         [ BigQuery MCP Server ]           [ Gemini 2.5 Flash ]
  (XGBoost 3-Class Risk)       (Streamable HTTP: googleapis)     (Grounded Explanation
                                - ImpactGraph Settlements         & Multimodal Vision)
                                - Critical Infrastructure
@@ -76,7 +76,7 @@ Built specifically for the **Lower Brahmaputra River Basin (Assam, India)**, Ear
    - The ADK agent connects to Google's managed BigQuery MCP Server (`https://bigquery.googleapis.com/mcp`) via **Streamable HTTP** using `McpToolset`.
    - Queries an `ImpactGraph` mapping affected villages, population densities, schools, and hospitals in Assam so every cited entity is verified in SQL.
 5. **Multimodal Ground & SAR Verification**:
-   - Evaluators or local volunteers can submit ground photos in the dashboard; Gemini 3.8 Flash analyzes waterlogging markers and combines them with Sentinel-1 SAR radar evidence.
+   - Evaluators or local volunteers can submit ground photos in the dashboard; Gemini 2.5 Flash analyzes waterlogging markers and combines them with Sentinel-1 SAR radar evidence.
 6. **Strict Observability & Distributed Tracing**:
    - 100% instrumented with OpenTelemetry, exporting spans across Cloud Run, Vertex AI, BigQuery, and Gemini to **Google Cloud Trace**.
 7. **Vertex AI Gen AI Evaluation Suite**:
@@ -120,11 +120,11 @@ Built specifically for the **Lower Brahmaputra River Basin (Assam, India)**, Ear
 ├── agent/                     # Google ADK Agent Service
 │   ├── Dockerfile
 │   ├── agent_service.py       # Cloud Run Push subscriber entrypoint
-│   ├── orchestrator.py        # LlmAgent definition (Gemini 3.8 Flash)
+│   ├── orchestrator.py        # LlmAgent definition (Gemini 2.5 Flash)
 │   ├── tools/
 │   │   ├── vertex_predictor.py# Native Vertex AI XGBoost tool
 │   │   ├── bq_mcp_client.py   # Streamable HTTP BigQuery MCP client
-│   │   └── vision_analyzer.py # Gemini 3.8 Flash multimodal photo inspection
+│   │   └── vision_analyzer.py # Gemini 2.5 Flash multimodal photo inspection
 │   ├── policy_engine.py       # Cooldown gating, deduplication, audit records
 │   └── telemetry.py           # OpenTelemetry tracer & Cloud Trace export
 ├── evals/                     # Gen AI Evaluation Harness

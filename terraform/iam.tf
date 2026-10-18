@@ -14,7 +14,10 @@ resource "google_project_iam_member" "ingestion_roles" {
     "roles/bigquery.jobUser",
     "roles/pubsub.publisher",
     "roles/storage.objectAdmin",
-    "roles/cloudtrace.agent"
+    "roles/cloudtrace.agent",
+    # Earth Engine init needs these (added manually 2026-10-17; codified here):
+    "roles/serviceusage.serviceUsageConsumer",
+    "roles/earthengine.writer"
   ])
   project = var.project_id
   role    = each.key
@@ -79,4 +82,21 @@ resource "google_project_iam_member" "dashboard_roles" {
   project = var.project_id
   role    = each.key
   member  = "serviceAccount:${google_service_account.sa_dashboard.email}"
+}
+
+# 6. Vertex AI Agent Engine (Reasoning Engine) runtime service agent.
+# This SA is Google-managed (auto-created when the Agent Engine / aiplatform RE API
+# is used). The deployed agent runs AS this identity, so it needs access to call the
+# Vertex endpoint, read/write BigQuery, and use the project's APIs.
+# Granted manually 2026-10-18; codified here so a rebuild recreates them.
+resource "google_project_iam_member" "reasoning_engine_roles" {
+  for_each = toset([
+    "roles/aiplatform.user",
+    "roles/bigquery.dataEditor",
+    "roles/bigquery.jobUser",
+    "roles/serviceusage.serviceUsageConsumer"
+  ])
+  project = var.project_id
+  role    = each.key
+  member  = "serviceAccount:service-${data.google_project.current.number}@gcp-sa-aiplatform-re.iam.gserviceaccount.com"
 }
