@@ -14,7 +14,7 @@ All values below were **confirmed via `gcloud`/`bq` on 2026-10-15**.
 
 | Key | Value |
 |---|---|
-| Project ID | `earth-whisper-ai-builders-cup` |
+| Project ID | `your-google-cloud-project-id` |
 | Project number | `303899581896` |
 | Region | `us-central1` |
 | BigQuery live dataset | `earthwhisper_live` |
@@ -22,7 +22,7 @@ All values below were **confirmed via `gcloud`/`bq` on 2026-10-15**.
 Environment variables (set these in `.env` or pass via Cloud Run deployment):
 
 ```bash
-PROJECT_ID=earth-whisper-ai-builders-cup
+PROJECT_ID=your-google-cloud-project-id
 REGION=us-central1
 VERTEX_ENDPOINT_ID=earthwhisper-flood-risk-endpoint
 BIGQUERY_DATASET_LIVE=earthwhisper_live
@@ -36,7 +36,7 @@ Auth for local runs:
 ```bash
 gcloud auth login
 gcloud auth application-default login   # so the Python aiplatform/bigquery libs authenticate
-gcloud config set project earth-whisper-ai-builders-cup
+gcloud config set project your-google-cloud-project-id
 ```
 
 ---

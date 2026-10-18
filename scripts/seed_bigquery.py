@@ -20,7 +20,7 @@ logger = logging.getLogger("earthwhisper-seeder-dispatcher")
 def main():
     parser.add_argument(
         "--project_id",
-        default=os.getenv("PROJECT_ID") or os.getenv("GOOGLE_CLOUD_PROJECT") or "earth-whisper-ai-builders-cup",
+        default=os.getenv("PROJECT_ID") or os.getenv("GOOGLE_CLOUD_PROJECT") or "your-google-cloud-project-id",
         help="GCP Project ID (defaults to PROJECT_ID or GOOGLE_CLOUD_PROJECT env var)",
     )
     parser.add_argument("--mode", required=True, choices=["live", "mock"], help="Execution mode: 'live' or 'mock'")

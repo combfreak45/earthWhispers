@@ -39,7 +39,7 @@ def _resolve_project_id() -> str:
             return auth_project.strip()
     except Exception:
         pass
-    return os.getenv("DEFAULT_GCP_PROJECT", "earth-whisper-ai-builders-cup")
+    return os.getenv("DEFAULT_GCP_PROJECT", "your-google-cloud-project-id")
 
 PROJECT_ID = _resolve_project_id()
 DATASET = os.getenv("BIGQUERY_DATASET_LIVE", "earthwhisper_live")
