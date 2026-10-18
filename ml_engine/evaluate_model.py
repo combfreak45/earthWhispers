@@ -21,7 +21,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("earthwhisper-evaluator")
 
 
-def evaluate_saved_model(project_id: str = "earth-whisper-ai-builders-cup", dataset_id: str = "earthwhisper_live"):
+def evaluate_saved_model(project_id: str = "your-google-cloud-project-id", dataset_id: str = "earthwhisper_live"):
     model_path = os.path.join(ARTIFACTS_DIR, "model.bst")
     if not os.path.exists(model_path):
         raise FileNotFoundError(f"Model file not found at {model_path}. Run train_xgboost.py first.")
@@ -75,7 +75,7 @@ def evaluate_saved_model(project_id: str = "earth-whisper-ai-builders-cup", data
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Evaluate trained XGBoost model on BigQuery holdout test set")
-    parser.add_argument("--project_id", default="earth-whisper-ai-builders-cup", help="GCP Project ID")
+    parser.add_argument("--project_id", default="your-google-cloud-project-id", help="GCP Project ID")
     parser.add_argument("--dataset_id", default="earthwhisper_live", help="Dataset ID (earthwhisper_live)")
     args = parser.parse_args()
 

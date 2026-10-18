@@ -32,7 +32,7 @@ app = FastAPI(
     version="1.0.0"
 )
 
-PROJECT_ID = os.getenv("PROJECT_ID", "earth-whisper-ai-builders-cup")
+PROJECT_ID = os.getenv("PROJECT_ID", "your-google-cloud-project-id")
 REGION = os.getenv("REGION", "us-central1")
 DEFAULT_CATCHMENT_ID = os.getenv("CATCHMENT_ID", "brahmaputra_lower_assam")
 TOPIC_SIGNALS = os.getenv("PUBSUB_TOPIC_SIGNALS", f"projects/{PROJECT_ID}/topics/earthwhisper-signals")

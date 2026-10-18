@@ -67,7 +67,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--project_id",
-        default=os.getenv("PROJECT_ID") or os.getenv("GOOGLE_CLOUD_PROJECT") or "earth-whisper-ai-builders-cup",
+        default=os.getenv("PROJECT_ID") or os.getenv("GOOGLE_CLOUD_PROJECT") or "your-google-cloud-project-id",
         help="GCP Project ID",
     )
     args = parser.parse_args()

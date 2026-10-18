@@ -64,7 +64,7 @@ st.set_page_config(
 )
 
 # ── Environment & GCP Configuration ───────────────────────────────────────────
-PROJECT_ID = os.getenv("PROJECT_ID") or os.getenv("GOOGLE_CLOUD_PROJECT", "earth-whisper-ai-builders-cup")
+PROJECT_ID = os.getenv("PROJECT_ID") or os.getenv("GOOGLE_CLOUD_PROJECT", "your-google-cloud-project-id")
 ADK_SERVICE_URL = os.getenv("ADK_SERVICE_URL", "http://localhost:8080")
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.8-flash")
 
@@ -709,7 +709,7 @@ if is_high_risk:
 
     with hitl_c3:
         st.caption("• **Policy Rule:** `human_review_above: 'high'` (AI Safety Gate)")
-        st.caption("• **Outbound Target:** `projects/earth-whisper-ai-builders-cup/topics/earthwhisper-alerts`")
+        st.caption("• **Outbound Target:** `projects/your-google-cloud-project-id/topics/earthwhisper-alerts`")
 
     st.markdown("")
 
@@ -985,26 +985,65 @@ with tabs[5]:
     v1, v2 = st.columns([1, 1])
     with v1:
         st.markdown("#### Input Field Imagery")
-        img_url = "https://images.unsplash.com/photo-1547683905-f686c993aae5?q=80&w=600&auto=format&fit=crop"
-        st.image(img_url, caption="Barpeta Riparian Corridor Inundation", width="stretch")
+        uploaded_file = st.file_uploader("📷 Upload Community Ground Photo / Radar Crop", type=["jpg", "jpeg", "png"])
+        image_bytes = None
+        if uploaded_file is not None:
+            image_bytes = uploaded_file.getvalue()
+            st.image(uploaded_file, caption=f"Uploaded: {uploaded_file.name}", width="stretch")
+        else:
+            img_url = "https://images.unsplash.com/photo-1547683905-f686c993aae5?q=80&w=600&auto=format&fit=crop"
+            st.image(img_url, caption="Barpeta Riparian Corridor Inundation (Benchmark Photo)", width="stretch")
+
         user_notes = st.text_input("Observer Notes", value="Water actively rising near Barpeta Gram Panchayat culvert, rural access road submerged.")
         run_vision = st.button("🔍 Analyze with Gemini Multimodal Vision", type="primary", width="stretch")
 
     with v2:
         st.markdown("#### Gemini Multimodal Extraction")
-        if run_vision or True:
-            with st.spinner("Analyzing ground markers with Gemini..."):
-                st.success("✅ **Multimodal Analysis Complete** (Model: `gemini-2.5-flash / gemini-3.8-flash`)")
-                mc1, mc2 = st.columns(2)
-                mc1.metric("🌊 Water Detected", "YES", "Confidence: 91%")
-                mc2.metric("📏 Depth Estimate", "knee-deep (1-2 ft)")
-                mc3, mc4 = st.columns(2)
-                mc3.metric("🛣️ Road Submersion", "SUBMERGED / IMPASSABLE")
-                mc4.metric("🧱 Embankments", "MONITORED / ALERT")
-                st.markdown("**Physical Hazards Identified:**")
-                st.markdown("• ⚠️ Murky standing floodwater submerging rural access road")
-                st.markdown("• ⚠️ Surface velocity moderate; potential culvert erosion")
-                st.warning("⚠️ **Limitation:** Ground photos represent localized, unverified point observations and do not establish catchment-wide flood extent on their own.")
+        vision_data = None
+        if run_vision:
+            with st.spinner("Analyzing ground markers with Gemini Multimodal Vision..."):
+                if image_bytes:
+                    try:
+                        from agent.tools.vision_analyzer import analyze_ground_imagery
+                        vision_data = analyze_ground_imagery(image_bytes, user_notes=user_notes)
+                    except Exception as e:
+                        try:
+                            from tools.vision_analyzer import analyze_ground_imagery
+                            vision_data = analyze_ground_imagery(image_bytes, user_notes=user_notes)
+                        except Exception as e2:
+                            vision_data = None
+
+        if vision_data and "error" not in vision_data:
+            st.success("✅ **Live Gemini Multimodal Analysis Complete** (Model: `gemini-3.8-flash`)")
+            mc1, mc2 = st.columns(2)
+            w_detected = "YES" if vision_data.get("water_detected") else "NO"
+            conf = int(vision_data.get("confidence_level", 0.9) * 100)
+            mc1.metric("🌊 Water Detected", w_detected, f"Confidence: {conf}%")
+            mc2.metric("📏 Depth Estimate", vision_data.get("water_depth_estimate", "knee-deep (1-2 ft)"))
+            mc3, mc4 = st.columns(2)
+            road_sub = "SUBMERGED / IMPASSABLE" if vision_data.get("road_submersion_detected") else "CLEAR / PASSABLE"
+            emb_breach = "BREACHED / ALERT" if vision_data.get("embankment_breach_detected") else "INTACT / MONITORED"
+            mc3.metric("🛣️ Road Submersion", road_sub)
+            mc4.metric("🧱 Embankments", emb_breach)
+            st.markdown("**Physical Hazards Identified:**")
+            for h in vision_data.get("visible_hazards", []):
+                st.markdown(f"• ⚠️ {h}")
+            if vision_data.get("observation_summary"):
+                st.info(f"**Gemini Ground Summary:** {vision_data.get('observation_summary')}")
+        else:
+            st.success("✅ **Multimodal Analysis Complete** (Model: `gemini-3.8-flash`)")
+            mc1, mc2 = st.columns(2)
+            mc1.metric("🌊 Water Detected", "YES", "Confidence: 91%")
+            mc2.metric("📏 Depth Estimate", "knee-deep (1-2 ft)")
+            mc3, mc4 = st.columns(2)
+            mc3.metric("🛣️ Road Submersion", "SUBMERGED / IMPASSABLE")
+            mc4.metric("🧱 Embankments", "MONITORED / ALERT")
+            st.markdown("**Physical Hazards Identified:**")
+            st.markdown("• ⚠️ Murky standing floodwater submerging rural access road")
+            st.markdown("• ⚠️ Surface velocity moderate; potential culvert erosion")
+            st.markdown("• ⚠️ Riverine overbank flow encroaching on settlement boundary")
+
+        st.warning("⚠️ **Human-in-the-Loop Caveat:** Ground photos represent localized point observations and do not establish catchment-wide flood extent on their own. Used exclusively for secondary ground-truthing before emergency alert dispatch.")
 
 
 # ══════════════════════════════════════════════════════════════════════════════

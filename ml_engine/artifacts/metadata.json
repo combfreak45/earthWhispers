@@ -24,7 +24,7 @@
     "data_freshness_hrs",
     "spatial_coverage_pct"
   ],
-  "source_dataset": "earth-whisper-ai-builders-cup.earthwhisper_live.training_dataset",
+  "source_dataset": "your-google-cloud-project-id.earthwhisper_live.training_dataset",
   "accuracy": 0.4821,
   "weighted_f1": 0.4537,
   "roc_auc_ovr": 0.5816,
